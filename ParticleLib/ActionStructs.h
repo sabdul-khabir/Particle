@@ -103,6 +103,10 @@ struct PACommitKills : public PActionBase {
     ACTION_DECLS;
 };
 
+struct PACommitSources : public PActionBase {
+    ACTION_DECLS;
+};
+
 struct PACopyVertexB : public PActionBase {
     bool copy_pos;
     bool copy_vel;

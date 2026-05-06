@@ -74,6 +74,17 @@ void PContextActions_t::CommitKills()
     PS->SendAction(std::shared_ptr<PActionBase>(A));
 }
 
+void PContextActions_t::CommitSources()
+{
+    P_CHECK_ERR;
+    PACommitSources* A = new PACommitSources;
+
+    A->SetKillsParticles(false);
+    A->SetDoNotSegment(true); // Adding particles changes the group size, breaking segmentation optimizations.
+
+    PS->SendAction(std::shared_ptr<PActionBase>(A));
+}
+
 void PContextActions_t::CopyVertexB(const bool copy_pos, const bool copy_vel)
 {
     P_CHECK_ERR;

@@ -15,6 +15,7 @@
 
 #include "Particle/pAPI.h"
 #include "Particle/pActionImpls.h"
+#include "ParticleLib/PInternalState.h"
 
 namespace PAPI {
 
@@ -174,6 +175,30 @@ PINLINE void PContextActions_t::Vortex(Particle_t& m, const pVec& tip, const pVe
     PAVortex_Impl(m, PSh.get_dt(), tip, axis, tightnessExponent, max_radius, inSpeed, upSpeed, aroundSpeed);
 }
 
+PINLINE void PContextActions_t::Source(Particle_t& m, const float particle_rate, const pDomain& dom, const pSourceState& SrcSt)
+{
+    P_CHECK_ERR;
+    PASourceInline_Impl(m, PSh.get_dt(), particle_rate, dom, SrcSt, PS->GetLocalDeferredBuffer());
+}
+
+PINLINE void PContextActions_t::Vertex(Particle_t& m, const pVec& v, const pSourceState& SrcSt, const pdata_t data)
+{
+    P_CHECK_ERR;
+    PAVertexInline_Impl(m, PSh.get_dt(), v, SrcSt, data, PS->GetLocalDeferredBuffer());
+}
+
+PINLINE void PContextActions_t::Waypoints(Particle_t& m, const pVec* waypoints, const int count, const float magnitude, const float epsilon)
+{
+    P_CHECK_ERR;
+    PAWaypoints_Impl(m, PSh.get_dt(), waypoints, count, magnitude, epsilon);
+}
+
+PINLINE void PContextActions_t::VoxelField(Particle_t& m, const pVec& grid_origin, const pVec& grid_size, const int* dims, const pVec* field_data, const float magnitude)
+{
+    P_CHECK_ERR;
+    PAVoxelField_Impl(m, PSh.get_dt(), grid_origin, grid_size, dims, field_data, magnitude);
+}
+
 //////////////////////////////////////////////////////////////////
 // Inter-particle actions
 
@@ -200,6 +225,27 @@ PINLINE void PContextActions_t::MatchRotVelocity(Particle_t& m, const float magn
     P_CHECK_ERR;
     PAMatchRotVelocity_Impl(m, PSh.get_dt(), magnitude, epsilon, max_radius, PSh.get_const_pgroup_begin(), PSh.get_const_pgroup_end());
 }
+
+PINLINE void PContextActions_t::ResolveCollisions(Particle_t& m, const float resilience, const float friction)
+{
+    P_CHECK_ERR;
+    PAResolveCollisions_Impl(m, PSh.get_dt(), resilience, friction, PSh.get_const_pgroup_begin(), PSh.get_const_pgroup_end());
+}
+
+PINLINE void PContextActions_t::SPH(Particle_t& m, const float target_density, const float pressure_multiplier, const float viscosity)
+{
+    P_CHECK_ERR;
+    PASPH_Impl(m, PSh.get_dt(), target_density, pressure_multiplier, viscosity, PSh.get_const_pgroup_begin(), PSh.get_const_pgroup_end());
+}
+
+//////////////////////////////////////////////////////////////////
+// Attribute Mapping Actions
+
+PINLINE void PContextActions_t::DensityColor(Particle_t& m, const pDomain& dom) { P_CHECK_ERR; PADensityColor_Impl(m, PSh.get_dt(), dom); }
+PINLINE void PContextActions_t::PositionColor(Particle_t& m, const pDomain& dom) { P_CHECK_ERR; PAPositionColor_Impl(m, PSh.get_dt(), dom); }
+PINLINE void PContextActions_t::RandomColor(Particle_t& m, const pDomain& dom) { P_CHECK_ERR; PARandomColor_Impl(m, PSh.get_dt(), dom); }
+PINLINE void PContextActions_t::VelocityColor(Particle_t& m, const pDomain& dom) { P_CHECK_ERR; PAVelocityColor_Impl(m, PSh.get_dt(), dom); }
+PINLINE void PContextActions_t::VelocitySize(Particle_t& m, const pDomain& dom) { P_CHECK_ERR; PAVelocitySize_Impl(m, PSh.get_dt(), dom); }
 
 //////////////////////////////////////////////////////////////////
 // Other exceptional actions
