@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>   
+#include <algorithm>
 
 namespace PAPI {
 
@@ -244,6 +245,10 @@ public:
                                float*& massPtr,
                                uint32_t*& dataPtr);
 
+    size_t GetParticlePointer(const float*& ptr, size_t& stride, size_t& pos3Ofs, size_t& posB3Ofs, size_t& size3Ofs, size_t& vel3Ofs,
+                                                   size_t& velB3Ofs, size_t& color3Ofs, size_t& alpha1Ofs, size_t& age1Ofs, size_t& up3Ofs, size_t& rvel3Ofs,
+                                                   size_t& upB3Ofs, size_t& mass1Ofs, size_t& data1Ofs);
+
     /// Change the maximum number of particles in the current group.
     ///
     /// If necessary, this will delete particles from the end of the particle group, but no other particles will be deleted.
@@ -370,27 +375,6 @@ public:
     ///
     /// If too few particles seem to be added each frame, it is probably because the particle group is already full. If this is bad, you can
     /// grow the group using SetMaxParticles().
-    void Source(const float particle_rate, ///< how many particles to add per unit time
-                const pDomain& dom,        ///< particle positions are chosen from this domain
-                const pSourceState& SrcSt  ///< all other particle attributes are chosen from this source state
-    );
-
-    /// Add a single particle at the specified location.
-    ///
-    /// This action mostly is a shorthand for Source(1, PDPoint(x, y, z)) but allows different callback data per particle.
-    ///
-    /// When called in immediate mode, this action uses a slightly faster method to add a single particle to the current particle group.
-    /// Also when in immediate mode, exactly one particle will be added per call, instead of an average of 1 / dt particles being added.
-    /// Particle attributes are chosen according to their current domains, as with Source.
-    ///
-    /// The user data attribute is an exception. It always takes the attribute from the optional data parameter to Vertex(), overriding the source state value.
-    ///
-    /// This call is patterned after the glVertex() calls. It is useful for creating a particle group with exactly specified initial positions.
-    /// For example, you can specify a geometrical model using Vertex calls, and then explode or deform it.
-    void Vertex(const pVec& v,             ///< position of particle to create
-                const pSourceState& SrcSt, ///< all other particle attributes are chosen from this source state
-                const pdata_t data = 0     ///< application data to be passed to the birth and death callbacks
-    );
 
     /// <summary>
     /// Loop over particles executing all actions expressed in function f

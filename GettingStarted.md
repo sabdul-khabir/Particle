@@ -95,6 +95,40 @@ The `ParticleLoop` is designed to be "embarrassingly parallel." Always use `std:
 *   **Move at the end:** Always call `Move()` as the last action in your loop. This ensures that all forces (Gravity) and constraints (Bounce) calculated in the current step are applied to the final position.
 *   **Avoid $O(N^2)$ actions:** Actions like `Gravitate()` or `MatchVelocity()` check every particle against every other particle. Use them sparingly or limit their influence with a small `max_radius`.
 
+### Secondary Emission (Inline Source/Vertex)
+
+A unique feature of Inline Mode is the ability to emit new particles from *existing* particles. This is ideal for trails, sparks, or debris. When `Source()` or `Vertex()` are called inside a `ParticleLoop`, the first argument is the current particle (`p`), and the position is treated as an offset relative to that particle.
+
+Because the loop is parallel, these new particles are not added to memory immediately. You must call `CommitSources()` after the loop to finalize their creation.
+
+```cpp
+void Update(float dt) {
+    pSourceState S_Trail;
+    S_Trail.Color(PDPoint(pVec(1, 0.4, 0))); // Orange trail
+    S_Trail.StartingAge(0, 0.1f);
+
+    P.ParticleLoop(std::execution::par_unseq, [&](Particle_t& p) {
+        // 1. Standard physics
+        P.Gravity(p, pVec(0, 0, -0.05f));
+        
+        // 2. Inline Source: Each existing particle spawns 5 trail particles per unit time.
+        // The PDPoint(pVec(0)) means they are born exactly at the parent's current position.
+        P.Source(p, 5.0f, PDPoint(pVec(0, 0, 0)), S_Trail);
+
+        // 3. Inline Vertex: Spawn one specific "spark" at a relative offset.
+        if(p.age > 2.0f) {
+            P.Vertex(p, pVec(0, 0.1f, 0), S_Trail);
+        }
+
+        P.Move(p);
+    });
+
+    // 4. Finalize the emission and cleanup
+    P.CommitSources(); // Adds buffered trail particles to the group
+    P.CommitKills();   // Removes dead particles
+}
+```
+
 ### Rendering Efficiency
 Use `GetParticlePointer()` instead of `GetParticles()`. The pointer allows you to pass internal API memory directly to your graphics driver (via `glVertexPointer` or `glBufferData`), avoiding an expensive CPU-side memory copy.
 

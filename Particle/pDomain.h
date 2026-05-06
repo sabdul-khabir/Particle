@@ -11,6 +11,7 @@
 #include "Particle/pError.h"
 #include "Particle/pVec.h"
 
+#include <cmath> // For M_PI, cosf, sinf, fabsf, sqrtf
 #include <string>
 #include <vector>
 #include <memory>

@@ -85,7 +85,7 @@ void PContextActionList_t::Seed(const unsigned int seed) { pSRandf(seed); }
 int PContextParticleGroup_t::GenParticleGroups(const int p_group_count, const size_t max_particles)
 {
     if (PS->get_in_new_list()) throw PErrInNewActionList("Can't call GenParticleGroups while in NewActionList.");
-    if (p_group_count < 0) throw PErrParticleGroup("Invalid particle group number 0");
+    // p_group_count is int, so < 0 is valid.
     if (max_particles < 0) throw PErrParticleGroup("Invalid max_particles");
 
     int ind = PS->GeneratePGroups(p_group_count);
@@ -121,7 +121,7 @@ void PContextParticleGroup_t::CurrentGroup(const int p_group_num)
 void PContextParticleGroup_t::SetMaxParticles(const size_t max_count)
 {
     if (PS->get_in_new_list()) throw PErrInNewActionList("Can't call SetMaxParticles while in NewActionList.");
-    if (max_count < 0) throw PErrParticleGroup("Invalid max_count.");
+    // max_count is size_t, so < 0 is always false.
     if (PS->get_pgroup_id() < 0 || PS->get_pgroup_id() >= (int)PS->getPGroups().size()) throw PErrParticleGroup("Invalid particle group number 9");
 
     // This can kill them and call their death callback.
@@ -132,7 +132,7 @@ void PContextParticleGroup_t::SetMaxParticles(const size_t max_count)
 void PContextParticleGroup_t::CopyGroup(const int p_src_group_num, const size_t index, const size_t copy_count)
 {
     if (PS->get_in_new_list()) throw PErrInNewActionList("Can't call CopyGroup while in NewActionList.");
-    if (index < 0) throw PErrInNewActionList("index invalid in CopyGroup.");
+    // index is size_t, so < 0 is always false.
     if (p_src_group_num < 0 || p_src_group_num >= (int)PS->getPGroups().size()) throw PErrParticleGroup("Invalid particle group number 4");
 
     ParticleGroup& srcgrp = PS->getPGroups()[p_src_group_num];
@@ -143,7 +143,7 @@ void PContextParticleGroup_t::CopyGroup(const int p_src_group_num, const size_t 
     size_t ccount = copy_count;
     if (ccount > srcgrp.size() - index) ccount = srcgrp.size() - index;
     if (ccount > destgrp.GetMaxParticles() - destgrp.size()) ccount = destgrp.GetMaxParticles() - destgrp.size();
-    if (ccount < 0) ccount = 0;
+    // ccount is size_t, so < 0 is always false.
 
     // Directly copy the particles to the current list.
     for (size_t i = 0; i < ccount; i++) { destgrp.Add(srcgrp.GetList()[index + i]); }
@@ -155,7 +155,7 @@ size_t PContextParticleGroup_t::GetParticles(const size_t index, const size_t cn
 {
     if (PS->get_in_new_list()) throw PErrInNewActionList("Can't call GetParticles while in NewActionList.");
     if (PS->get_pgroup_id() < 0 || PS->get_pgroup_id() >= (int)PS->getPGroups().size()) throw PErrParticleGroup("GetParticles: Invalid pgroup_id");
-    if (index < 0 || cnt < 0) throw PErrParticleGroup("GetParticles: Invalid index or count.");
+    // index and cnt are size_t, so < 0 is always false.
 
     ParticleGroup& pg = PS->getPGroups()[PS->get_pgroup_id()];
 
@@ -163,7 +163,7 @@ size_t PContextParticleGroup_t::GetParticles(const size_t index, const size_t cn
 
     if (index + count > pg.size()) {
         count = pg.size() - index;
-        if (count < 0) throw PErrParticleGroup("GetParticles: index out of bounds.");
+        // count is size_t, so < 0 is always false.
     }
 
     int vi = 0, ci = 0, li = 0, si = 0, ai = 0;

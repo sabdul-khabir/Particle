@@ -114,6 +114,12 @@ int main(int argc, char** argv)
     glutInitWindowSize(800, 800);
     glutCreateWindow("Particle Example");
 
+    // Initialize GLEW after a window is created
+    if (glewInit() != GLEW_OK) {
+        std::cerr << "Failed to initialize GLEW!" << std::endl;
+        return 1;
+    }
+
     glutDisplayFunc(Draw);
     glutIdleFunc(Draw);
     glutReshapeFunc(Reshape);

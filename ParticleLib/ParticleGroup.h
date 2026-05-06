@@ -40,8 +40,8 @@ public:
     ParticleGroup()
     {
         max_particles = 0;
-        cb_birth = NULL;
-        cb_death = NULL;
+        cb_birth = nullptr;
+        cb_death = nullptr;
         group_birth_data = 0;
         group_death_data = 0;
     }
@@ -49,10 +49,10 @@ public:
     ParticleGroup(size_t maxp) : max_particles(maxp)
     {
         list.reserve(max_particles);
-        cb_birth = NULL;
-        cb_death = NULL;
-        group_birth_data = NULL;
-        group_death_data = NULL;
+        cb_birth = nullptr;
+        cb_death = nullptr;
+        group_birth_data = 0;
+        group_death_data = 0;
     }
 
     ParticleGroup(const ParticleGroup& rhs) : list(rhs.list)
