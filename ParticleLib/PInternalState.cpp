@@ -71,7 +71,6 @@ std::vector<Particle_t>& PInternalState_t::GetLocalDeferredBuffer()
 
     if (cached_ps == this) return *cached_buf;
 
-    std::lock_guard<std::mutex> lock(registration_lock);
     all_thread_buffers.emplace_back(std::make_unique<std::vector<Particle_t>>());
     cached_ps = this;
     cached_buf = all_thread_buffers.back().get();

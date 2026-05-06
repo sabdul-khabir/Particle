@@ -415,7 +415,7 @@ void PACommitSources::Execute(ParticleGroup& group, ParticleList::iterator ibegi
 
     // Iterate through all registered thread-local buffers and harvest their particles.
     // This is safe because CommitSources is called sequentially after the parallel loop.
-    for (auto& buf_ptr : PS->all_thread_buffers) {
+    for (auto& buf_ptr : PS->all_thread_buffers.range()) { // Use range() for iteration over tbb::concurrent_vector
         for (const auto& p : *buf_ptr) {
             group.Add(p);
         }
