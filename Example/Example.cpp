@@ -16,11 +16,17 @@ using namespace PAPI;
 
 ParticleContext_t P;
 
+enum ParticleType {
+    TYPE_PRIMARY = 1,
+    TYPE_SECONDARY = 2
+};
+
 // A water fountain spraying upward
 void ComputeParticles()
 {
     // Set the state of the new particles to be generated
     pSourceState S;
+    S.Data(TYPE_PRIMARY);
     S.Velocity(PDCylinder(pVec(0.0f, -0.01f, 0.25f), pVec(0.0f, -0.01f, 0.27f), 0.021f, 0.019f));
     S.Color(PDLine(pVec(0.8f, 0.9f, 1.0f), pVec(1.0f, 1.0f, 1.0f)));
 
@@ -43,7 +49,57 @@ void ComputeParticles()
 
     P.CommitKills();
 }
+void Update(void) 
+{
+    // 1. Emit primary particles (The Fountain)
+    pSourceState S;
+    S.Data(TYPE_PRIMARY);
+    S.Velocity(PDCylinder(pVec(0.0f, -0.01f, 0.25f), pVec(0.0f, -0.01f, 0.27f), 0.021f, 0.019f));
+    S.Color(PDLine(pVec(0.8f, 0.9f, 1.0f), pVec(1.0f, 1.0f, 1.0f)));
+    // This creates 200 particles per unit time at the nozzle
+    P.Source(200, PDLine(pVec(0.f, 0.f, 0.f), pVec(0.f, 0.f, 0.4f)), S);
 
+    pSourceState S_Trail;
+    S_Trail.Data(TYPE_SECONDARY);
+    S_Trail.Color(PDPoint(pVec(1, 0.4, 0))); // Orange trail
+    S_Trail.StartingAge(0, 0.1f);
+
+    P.ParticleLoop(std::execution::par_unseq, [&](Particle_t& p) {
+        // 2. Standard physics
+        P.Gravity(p, pVec(0, 0, -0.01f));
+
+        // Bounce particles off the ground (Z=0)
+        P.Bounce(p, 0.f, 0.5f, 0.f, PDDisc(pVec(0.f, 0.f, 0.f), pVec(0.f, 0.f, 1.f), 5.f));
+        
+        // 3. Inline Source: Each existing particle spawns 5 trail particles per unit time.
+        // The PDPoint(pVec(0)) means they are born exactly at the parent's current position.
+        P.Source(p, 5.0f, PDPoint(pVec(0, 0, 0)), S_Trail);
+
+        // 3. Inline Vertex: Spawn one specific "spark" at a relative offset.
+        if(p.age > 2.0f) {
+            //std::cout<<"AGE";
+            //P.Vertex(p, pVec(0, 0.1f, 0), S_Trail);
+        }
+
+        // Kill particles if they fall too far (below Z=-3)
+        P.Sink(p, false, PDPlane(pVec(0.f, 0.f, -3.f), pVec(0.f, 0.f, 1.f)));
+
+        // Use the data field to apply different lifetimes
+        if (p.data == TYPE_PRIMARY) {
+            // Primary fountain particles live for 5.0 units
+           // P.KillOld(p, 5.0f);
+        } else if (p.data == TYPE_SECONDARY) {
+            // Secondary trail particles die quickly after 0.5 units
+            P.KillOld(p, 0.5f);
+        }
+
+        P.Move(p);
+    });
+
+    // 4. Finalize the emission and cleanup
+    P.CommitSources(); // Adds buffered trail particles to the group
+    P.CommitKills();   // Removes dead particles
+}
 // Draw each particle as a point using vertex arrays
 // To draw as textured point sprites just call glEnable(GL_POINT_SPRITE) before calling this function.
 void DrawGroupAsPoints()
@@ -87,7 +143,8 @@ void Draw()
     glPopMatrix();
 
     // Do what the particles do
-    ComputeParticles();
+    //ComputeParticles();
+    Update();
 
     // Draw the particles
     DrawGroupAsPoints();

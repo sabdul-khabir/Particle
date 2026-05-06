@@ -11,6 +11,8 @@
 #include "Particle/pAPIContext.h"
 #include "ParticleGroup.h"
 
+#include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -27,6 +29,7 @@ public:
 class PInternalState_t {
 public:
     PInternalState_t();
+    ~PInternalState_t();
 
     bool get_in_call_list() const { return in_call_list; }
     bool get_in_new_list() const { return in_new_list; }
@@ -51,6 +54,13 @@ public:
 
     std::vector<ActionList>& getALists() { return ALists; }
     std::vector<ParticleGroup>& getPGroups() { return PGroups; }
+
+    // Thread-safe collection of per-thread deferred particle buffers to avoid mutex contention
+    std::vector<std::unique_ptr<std::vector<Particle_t>>> all_thread_buffers;
+    std::mutex registration_lock;
+
+    // Returns a thread-local buffer for the current context, registering it if necessary
+    std::vector<Particle_t>& GetLocalDeferredBuffer();
 
 private:
     bool in_call_list;

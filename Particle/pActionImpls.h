@@ -1100,4 +1100,29 @@ PINLINE void PASource_Impl(Particle_t& m, const float dt, const pDomain& gen_pos
     m.data = SrcSt.Data_;
 }
 
+/// Inline version of Source for spawning particles from another particle.
+PINLINE void PASourceInline_Impl(Particle_t& m, float dt, float particle_rate, const pDomain& dom, const pSourceState& ss, std::vector<Particle_t>& buffer)
+{
+    // Calculate how many particles to spawn this frame.
+    size_t rate = SourceQuantity(particle_rate, dt, 0, (size_t)P_MAXFLOAT);
+
+    for (size_t i = 0; i < rate; i++) {
+        Particle_t NewP;
+        PASource_Impl(NewP, dt, dom, ss);
+        // The spawned particle's position is relative to the parent particle.
+        NewP.pos += m.pos;
+        buffer.push_back(NewP);
+    }
+}
+
+/// Inline version of Vertex for spawning a single particle relative to another.
+PINLINE void PAVertexInline_Impl(Particle_t& m, float dt, const pVec& v, const pSourceState& ss, pdata_t data, std::vector<Particle_t>& buffer)
+{
+    Particle_t NewP;
+    PASource_Impl(NewP, dt, PDPoint(v), ss);
+    NewP.pos += m.pos;
+    NewP.data = data;
+    buffer.push_back(NewP);
+}
+
 #endif

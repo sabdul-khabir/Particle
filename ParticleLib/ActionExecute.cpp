@@ -37,6 +37,8 @@ std::string PACallActionList::abrv = "CAL";
 std::string PACallActionList::name = "PACallActionList";
 std::string PACallback::abrv = "CB";
 std::string PACallback::name = "PACallback";
+std::string PACommitSources::abrv = "CS";
+std::string PACommitSources::name = "PACommitSources";
 std::string PACommitKills::abrv = "CK";
 std::string PACommitKills::name = "PACommitKills";
 std::string PACopyVertexB::abrv = "CVB";
@@ -404,6 +406,21 @@ void PACommitKills::Execute(ParticleGroup& group, ParticleList::iterator ibegin,
     }
 
 #endif
+}
+
+// Add particles tagged to be created by inline P.Source() and P.Vertex()
+void PACommitSources::Execute(ParticleGroup& group, ParticleList::iterator ibegin, ParticleList::iterator iend)
+{
+    LIB_ASSERT(ibegin == group.begin() && iend == group.end(), "Can only be done on whole list");
+
+    // Iterate through all registered thread-local buffers and harvest their particles.
+    // This is safe because CommitSources is called sequentially after the parallel loop.
+    for (auto& buf_ptr : PS->all_thread_buffers) {
+        for (const auto& p : *buf_ptr) {
+            group.Add(p);
+        }
+        buf_ptr->clear(); // Clear for the next frame/loop
+    }
 }
 
 // Get rid of older particles
