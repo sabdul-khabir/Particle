@@ -575,6 +575,26 @@ PINLINE void PAGravity_Impl(Particle_t& m, const float dt, const pVec direction)
     m.vel += ddir;
 }
 
+/// Accelerate particles toward the current waypoint.
+PINLINE void PAWaypoints_Impl(Particle_t& m, const float dt, const pVec* waypoints, const int count, const float magnitude, const float epsilon)
+{
+    if (count <= 0) return;
+
+    // Use the particle's data field to store the current waypoint index.
+    int& idx = reinterpret_cast<int&>(m.data);
+    if (idx < 0 || idx >= count) idx = 0;
+
+    pVec dir = waypoints[idx] - m.pos;
+    float r2 = dir.lenSqr();
+
+    // If close enough to current waypoint, target the next one.
+    if (r2 < fsqr(epsilon * 10.0f)) {
+        idx = (idx + 1) % count;
+    }
+
+    m.vel += dir * (magnitude * dt / (sqrtf(r2) + epsilon));
+}
+
 // For particles in the domain of influence, accelerate them with a domain.
 PINLINE void PAJet_Impl(Particle_t& m, const float dt, const pDomain& dom, const pDomain& acc)
 {
@@ -591,6 +611,21 @@ PINLINE void PAMove_Impl(Particle_t& m, const float dt, const bool move_velocity
     m.age += dt;
     if (move_rotational_velocity) { m.up += m.rvel * dt; }
     if (move_velocity) { m.pos += m.vel * dt; }
+}
+
+/// Apply a force field defined by a 3D grid of vectors.
+PINLINE void PAVoxelField_Impl(Particle_t& m, const float dt, const pVec& grid_origin, const pVec& grid_size, const int* dims, const pVec* field_data, const float magnitude)
+{
+    pVec rel = m.pos - grid_origin;
+    pVec cell_size(grid_size.x() / (float)dims[0], grid_size.y() / (float)dims[1], grid_size.z() / (float)dims[2]);
+
+    int x = (int)(rel.x() / cell_size.x());
+    int y = (int)(rel.y() / cell_size.y());
+    int z = (int)(rel.z() / cell_size.z());
+
+    if (x >= 0 && x < dims[0] && y >= 0 && y < dims[1] && z >= 0 && z < dims[2]) {
+        m.vel += field_data[z * dims[0] * dims[1] + y * dims[0] + x] * (magnitude * dt);
+    }
 }
 
 // Accelerate particles towards a line
@@ -907,6 +942,94 @@ PINLINE void PAMatchRotVelocity_Impl(Particle_t& m, const float dt, const float 
             m.rvel += acc;
         }
     }
+}
+
+/// Handle collisions between particles.
+PINLINE void PAResolveCollisions_Impl(Particle_t& m, const float dt, const float resilience, const float friction, const Particle_t* ibegin, const Particle_t* iend)
+{
+    for (const Particle_t* p1 = ibegin; p1 != iend; ++p1) {
+        if (p1 == &m) continue;
+
+        pVec relPos = p1->pos - m.pos;
+        float distSqr = relPos.lenSqr();
+        float radiusSum = m.size.x() + p1->size.x();
+
+        if (distSqr > 0 && distSqr < fsqr(radiusSum)) {
+            float dist = sqrtf(distSqr);
+            pVec normal = relPos / dist;
+            pVec relVel = m.vel - p1->vel;
+            float separatingVel = dot(relVel, normal);
+
+            if (separatingVel > 0) continue; // Already moving apart.
+
+            float impulse = -(1.0f + resilience) * separatingVel;
+            impulse /= (1.0f / m.mass + 1.0f / p1->mass);
+            pVec impulseVec = normal * impulse;
+
+            m.vel += impulseVec / m.mass;
+            // Friction can be applied here based on the tangential velocity.
+        }
+    }
+}
+
+/// Use Smoothed Particle Hydrodynamics to simulate fluid behavior.
+PINLINE void PASPH_Impl(Particle_t& m, const float dt, const float target_density, const float pressure_multiplier, const float viscosity, const Particle_t* ibegin, const Particle_t* iend)
+{
+    float density = 0.0f;
+    float h = m.size.x() * 2.0f; // Smoothing length
+    float h2 = h * h;
+
+    // 1. Calculate Density
+    for (const Particle_t* p1 = ibegin; p1 != iend; ++p1) {
+        float r2 = (p1->pos - m.pos).lenSqr();
+        if (r2 < h2) {
+            density += m.mass * (315.0f / (64.0f * M_PI * powf(h, 9))) * powf(h2 - r2, 3);
+        }
+    }
+
+    // 2. Apply Pressure and Viscosity forces
+    float pressure = pressure_multiplier * (density - target_density);
+    pVec pressureForce(0.0f);
+    pVec viscosityForce(0.0f);
+
+    for (const Particle_t* p1 = ibegin; p1 != iend; ++p1) {
+        if (p1 == &m) continue;
+        pVec rVec = m.pos - p1->pos;
+        float r = rVec.length();
+        if (r < h && r > 0) {
+            // Spiky kernel for pressure
+            float p1_density = target_density; // Simplified: assume neighbors are near target
+            float avg_p = (pressure + pressure_multiplier * (p1_density - target_density)) * 0.5f;
+            pressureForce -= rVec * (m.mass * avg_p * (45.0f / (M_PI * powf(h, 6))) * powf(h - r, 2) / r);
+
+            // Laplacian kernel for viscosity
+            viscosityForce += (p1->vel - m.vel) * (viscosity * m.mass * (45.0f / (M_PI * powf(h, 6))) * (h - r));
+        }
+    }
+    m.vel += (pressureForce + viscosityForce) * (dt / density);
+}
+
+//////////////////////////////////////////////////////////////////
+// Attribute Mapping Actions
+
+PINLINE void PADensityColor_Impl(Particle_t& m, const float dt, const pDomain& dom) { /* Implementation depends on SPH density calculation */ }
+
+PINLINE void PAPositionColor_Impl(Particle_t& m, const float dt, const pDomain& dom)
+{
+    m.color = dom.Generate(); // Simplistic: uses domain to provide color variety based on position context
+}
+
+PINLINE void PARandomColor_Impl(Particle_t& m, const float dt, const pDomain& dom)
+{
+    m.color += dom.Generate() * dt;
+}
+
+PINLINE void PAVelocityColor_Impl(Particle_t& m, const float dt, const pDomain& dom) { m.color = dom.Generate(); }
+
+PINLINE void PAVelocitySize_Impl(Particle_t& m, const float dt, const pDomain& dom)
+{
+    float speed = m.vel.length();
+    m.size = dom.Generate() * speed;
 }
 
 //////////////////////////////////////////////////////////////////

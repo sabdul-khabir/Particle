@@ -13,6 +13,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 
 namespace PAPI {
 ///< How small the dot product must be to declare that a point is in a plane for Within().

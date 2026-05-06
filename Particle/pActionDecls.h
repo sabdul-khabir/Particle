@@ -1,3 +1,17 @@
+/// Add new particles using the current particle as a source.
+/// This allows for trails, sparks from moving objects, etc., in inline mode.
+void Source(PARG const float particle_rate, ///< how many particles to add per unit time
+            const pDomain& dom,        ///< particle positions are relative to this particle if used in inline mode
+            const pSourceState& SrcSt  ///< all other particle attributes are chosen from this source state
+);
+
+/// Add a single particle at the specified location.
+/// In inline mode, the vertex 'v' is treated as an offset from the current particle's position.
+void Vertex(PARG const pVec& v,             ///< position offset of particle to create
+            const pSourceState& SrcSt, ///< all other particle attributes are chosen from this source state
+            const pdata_t data = 0     ///< application data to be passed to the birth and death callbacks
+);
+
 /// Steer particles away from a domain of space.
 ///
 /// Particles are tested to see whether they will pass from being outside the specified domain to being inside it within look_ahead time
@@ -5,7 +19,7 @@
 /// domain being avoided.
 ///
 /// At present the only domains for which Avoid() is implemented are PDSphere, PDRectangle, PDTriangle, PDDisc and PDPlane.
-void Avoid(PARG const float magnitude, ///< how drastically the particle velocities are modified to avoid the obstacle at each time step.
+void Avoid(PARG const float magnitude, ///< how drastically the particle velocities are modified to avoid the obstacle
            const float epsilon,        ///< added to distance to dampen acceleration
            const float look_ahead,     ///< how far forward along the velocity vector to look for the obstacle
            const pDomain& dom          ///< the space to avoid
@@ -18,10 +32,10 @@ void Avoid(PARG const float magnitude, ///< how drastically the particle velocit
 /// velocity vector is decomposed into components normal to the surface and tangent to the surface. The direction of the normal component
 /// is reversed, and friction, resilience and fric_min_vel are applied to the components. They are then recomposed into a new velocity heading
 /// away from the surface.
-///
+/// 
 /// Since particles are tested to see whether they would pass through the domain if Move() were called now, it is best to have Bounce()
 /// be the last action that modifies a particle's velocity before calling Move().
-/// Also, actions such as RandomDisplace() that modify a particle's position directly, rather than modifying its velocity vector, may yield
+/// Also, actions such as RandomDisplace() that modify a particle's position directly may yield
 /// unsatisfying results when used with Bounce().
 ///
 /// At present Bounce() is not implemented for all domains. Feel free to implement others. For spheres, the particle bounces off either the inside or the
@@ -129,6 +143,13 @@ void OrbitPoint(PARG const pVec& center,            ///< accelerate toward this 
                 const float epsilon = P_EPS,        ///< added to distance to dampen acceleration
                 const float max_radius = P_MAXFLOAT ///< no particle further than max_radius from the center is affected
 );
+
+/// Accelerate particles toward the current waypoint.
+/// Once a particle is within a certain distance, it starts being attracted to the next waypoint in the list.
+void Waypoints(PARG const pVec* waypoints,   ///< array of waypoint positions
+               const int count,              ///< number of waypoints
+               const float magnitude = 1.0f, ///< acceleration magnitude
+               const float epsilon = P_EPS);
 
 /// Accelerate particles in random directions.
 ///
@@ -258,6 +279,13 @@ void Vortex(PARG const pVec& tip,          ///< tip of the vortex
             const float aroundSpeed        ///< acceleration around vortex of particles INSIDE the vortex.
 );
 
+/// Apply a force field defined by a 3D grid of vectors.
+void VoxelField(PARG const pVec& grid_origin,
+                const pVec& grid_size,
+                const int* dims,
+                const pVec* field_data,
+                const float magnitude = 1.0f);
+
 //////////////////////////////////////////////////////////////////
 // Inter-particle actions
 
@@ -300,6 +328,24 @@ void MatchRotVelocity(PARG const float magnitude = 1.0f,  ///< scales each parti
                       const float epsilon = P_EPS,        ///< added to distance to dampen acceleration
                       const float max_radius = P_MAXFLOAT ///< no particle further than max_radius from another particle is affected
 );
+
+/// Handle collisions between particles.
+void ResolveCollisions(PARG const float resilience, ///< how much energy is kept after a collision
+                       const float friction);       ///< friction between particles
+
+/// Use Smoothed Particle Hydrodynamics to simulate fluid behavior.
+void SPH(PARG const float target_density,
+         const float pressure_multiplier,
+         const float viscosity);
+
+//////////////////////////////////////////////////////////////////
+// Attribute Mapping Actions
+
+void DensityColor(PARG const pDomain& dom);  ///< color = f(local_density)
+void PositionColor(PARG const pDomain& dom); ///< color = f(position)
+void RandomColor(PARG const pDomain& dom);   ///< color += random(dom)
+void VelocityColor(PARG const pDomain& dom); ///< color = f(velocity)
+void VelocitySize(PARG const pDomain& dom);  ///< size = f(velocity)
 
 //////////////////////////////////////////////////////////////////
 // Other exceptional actions

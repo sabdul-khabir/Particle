@@ -12,6 +12,9 @@
 #include "Particle/pInternalShadow.h"
 #include "Particle/pParticle.h"
 #include "Particle/pSourceState.h"
+#include <cstdint>
+#include <functional>
+#include <memory>   
 
 namespace PAPI {
 
@@ -228,22 +231,18 @@ public:
     ///
     /// Writing to the returned memory is obviously unsafe. There may be auxiliary data that depend on the current values of the particle data.
     /// You can try it if you want to, but your code may break against future API versions.
-    size_t GetParticlePointer(const float*& ptr, ///< the returned pointer to the particle data
-                              size_t& stride,    ///< the number of floats from one particle's value to the next particle's value
-                              size_t& pos3Ofs,   ///< the number of floats from returned ptr to the first particle's position parameter
-                              size_t& posB3Ofs,  ///< the number of floats from returned ptr to the first particle's positionB parameter
-                              size_t& size3Ofs,  ///< the number of floats from returned ptr to the first particle's size parameter
-                              size_t& vel3Ofs,   ///< the number of floats from returned ptr to the first particle's velocity parameter
-                              size_t& velB3Ofs,  ///< the number of floats from returned ptr to the first particle's velocityB parameter
-                              size_t& color3Ofs, ///< the number of floats from returned ptr to the first particle's color parameter
-                              size_t& alpha1Ofs, ///< the number of floats from returned ptr to the first particle's alpha parameter
-                              size_t& age1Ofs,   ///< the number of floats from returned ptr to the first particle's age parameter
-                              size_t& up3Ofs,    ///< the number of floats from returned ptr to the first particle's up parameter
-                              size_t& rvel3Ofs,  ///< the number of floats from returned ptr to the first particle's rvel parameter
-                              size_t& upB3Ofs,   ///< the number of floats from returned ptr to the first particle's upB parameter
-                              size_t& mass1Ofs,  ///< the number of floats from returned ptr to the first particle's mass parameter
-                              size_t& data1Ofs   ///< the number of floats from returned ptr to the first particle's data parameter, which is a 32-bit integer
-    );
+    ///
+    /// Note: As of version 3.1, this returns pointers in SoA (Structure of Arrays) format.
+    size_t GetParticlePointers(float*& posPtr,
+                               float*& velPtr,
+                               float*& colorPtr,
+                               float*& sizePtr,
+                               float*& agePtr,
+                               float*& alphaPtr,
+                               float*& upPtr,
+                               float*& rvelPtr,
+                               float*& massPtr,
+                               uint32_t*& dataPtr);
 
     /// Change the maximum number of particles in the current group.
     ///
@@ -341,6 +340,9 @@ public:
 
     /// Delete particles tagged to be killed by inline P.I.KillOld(), P.I.Sink(), and P.I.SinkVelocity()
     void CommitKills();
+
+    /// Add particles tagged to be created by inline P.Source() and P.Vertex()
+    void CommitSources();
 
     /// Sort the particles by their projection onto the look vector.
     ///
