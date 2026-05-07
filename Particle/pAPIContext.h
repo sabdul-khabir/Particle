@@ -16,6 +16,7 @@
 #include <functional>
 #include <memory>   
 #include <algorithm>
+#include <vector>
 
 namespace PAPI {
 
@@ -131,6 +132,14 @@ public:
 protected:
     std::shared_ptr<PInternalState_t> PS;                     // The internal API data for this context is stored here.
     void InternalSetup(std::shared_ptr<PInternalState_t> Sr); // Calls this after construction to set up the PS pointer
+
+    // Internal storage for the uniform spatial grid used by O(N) SPH and collisions.
+    struct PSpatialGrid_t {
+        std::vector<int> heads, next;
+        pVec min_pos;
+        int dims[3];
+        float h, inv_h;
+    } m_Grid;
 };
 
 /// This class contains the API calls that operate on particle groups.

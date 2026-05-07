@@ -333,10 +333,16 @@ void MatchRotVelocity(PARG const float magnitude = 1.0f,  ///< scales each parti
 void ResolveCollisions(PARG const float resilience, ///< how much energy is kept after a collision
                        const float friction);       ///< friction between particles
 
-/// Use Smoothed Particle Hydrodynamics to simulate fluid behavior.
-void SPH(PARG const float target_density,
-         const float pressure_multiplier,
-         const float viscosity);
+/// Use Smoothed Particle Hydrodynamics (SPH) to simulate fluid behavior.
+/// This implementation uses a uniform spatial grid for O(N) performance.
+/// Ensure UpdateSpatialGrid() is called before using this in a loop.
+void SPH(PARG const float target_density, const float pressure_multiplier, const float viscosity);
+
+/// Naive O(N^2) SPH implementation for comparison and benchmarking.
+void SPHNaive(PARG const float target_density, const float pressure_multiplier, const float viscosity);
+
+/// Rebuild the internal spatial grid for the current particle group.
+void UpdateSpatialGrid(PARG const float smoothing_length);
 
 //////////////////////////////////////////////////////////////////
 // Attribute Mapping Actions
