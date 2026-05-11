@@ -8,15 +8,13 @@
 #include "../DemoShared/DrawGroups.h"
 #include "../DemoShared/Effects.h"
 #include "../DemoShared/Monarch.h"
+#include "LocalUtils.h"
 #include "Particle/pAPI.h"
 
-// The following header files are part of DMcTools.
-// DMcTools is part of the same source distribution as the Particle API.
-#include "Image/tImage.h"
-#include "Math/Random.h"
-#include "Util/Assert.h"
-#include "Util/StatTimer.h"
-#include "Util/Timer.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+using namespace PAPI;
 
 // OpenGL
 #include "GL/glew.h"
@@ -47,7 +45,7 @@ bool SortParticles = false;
 
 // Internal state
 // ExecMode_e ExecMode = Internal_Mode; // Execute compiled action lists on host for non-varying effects or immediate for varying
-ExecMode_e ExecMode = Immediate_Mode; // Execute compiled action lists on host for non-varying effects or immediate for varying
+ExecMode_e ExecMode = Inline_Mode; // Execute parallel loop over particles
 ParticleContext_t P;
 StatTimer FPSClock(100);
 Timer RandomDemoClock;
@@ -482,16 +480,18 @@ void Draw()
         glDisable(GL_TEXTURE_2D);
         break;
     case PRIM_QUAD:
+    {
         glEnable(GL_TEXTURE_2D);
         pVec view = (At - Cam);
         view.normalize();
         DrawGroupAsQuadSprites(P, view, pVec(0, 0, 1), 1.f, true, false, false);
         glDisable(GL_TEXTURE_2D);
+    }
         break;
     case PRIM_NONE:
         // Don't draw.
         break;
-    default: PASSERT(0, "Bad PrimType");
+    default: PASSERT(0, "Bad PrimType");break;
     }
 
     GL_ASSERT();
@@ -577,13 +577,11 @@ void menu(int item)
         break;
     case 'i':
         if (ExecMode == Immediate_Mode)
-            ExecMode = ActionList_Mode;
-        else if (ExecMode == ActionList_Mode)
             ExecMode = Inline_Mode;
         else
             ExecMode = Immediate_Mode;
 
-        std::cerr << "Switching to " << ((ExecMode == Immediate_Mode) ? "Immediate" : (ExecMode == ActionList_Mode) ? "ActionList" : "Inline") << " mode.\n";
+        std::cerr << "Switching to " << ((ExecMode == Immediate_Mode) ? "Immediate" : "Inline") << " mode.\n";
         break;
     case 'm': MotionBlur = !MotionBlur; break;
     case 'a': UseEffectSettings = !UseEffectSettings; break;
@@ -724,7 +722,14 @@ int main(int argc, char** argv)
 
     Args(argc, argv);
     try {
-        Efx.SetPhoto(new uc3Image(FName));
+        int w, h, c;
+        unsigned char* data = stbi_load(FName, &w, &h, &c, 3);
+        if (data) {
+            uc3Image* img = new uc3Image(w, h);
+            memcpy(img->pix.data(), data, w * h * 3);
+            Efx.SetPhoto(img);
+            stbi_image_free(data);
+        }
     }
     catch (...) {
         std::cerr << "Failed to load " << FName << '\n';

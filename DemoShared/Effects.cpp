@@ -4,9 +4,7 @@
 
 using namespace PAPI;
 
-#include "Image/ImageAlgorithms.h"
-#include "Math/Random.h"
-
+#include <cmath>
 #include <execution>
 #include <iostream>
 #include <vector>
@@ -36,12 +34,12 @@ inline void BounceBox(pVec& jet, pVec& djet, float timeStep, const float boxSize
     pVec djet2(djet);
 
     jet += djet * timeStep;
-    if (jet.x() > boxSize) djet2.x() = copySign(djet.x(), -1.f);
-    if (jet.y() > boxSize) djet2.y() = copySign(djet.y(), -1.f);
-    if (jet.z() > boxSize) djet2.z() = copySign(djet.z(), -1.f);
-    if (jet.x() < -boxSize) djet2.x() = copySign(djet.x(), 1.f);
-    if (jet.y() < -boxSize) djet2.y() = copySign(djet.y(), 1.f);
-    if (jet.z() < -boxSize) djet2.z() = copySign(djet.z(), 1.f);
+    if (jet.x() > boxSize) djet2.x() = std::copysign(djet.x(), -1.f);
+    if (jet.y() > boxSize) djet2.y() = std::copysign(djet.y(), -1.f);
+    if (jet.z() > boxSize) djet2.z() = std::copysign(djet.z(), -1.f);
+    if (jet.x() < -boxSize) djet2.x() = std::copysign(djet.x(), 1.f);
+    if (jet.y() < -boxSize) djet2.y() = std::copysign(djet.y(), 1.f);
+    if (jet.z() < -boxSize) djet2.z() = std::copysign(djet.z(), 1.f);
 
     if (!(djet == djet2)) djet2 += pRandf() * 0.005f - 0.0025f;
     djet = djet2;
@@ -614,7 +612,7 @@ void JetSpray::DoActions(EffectsManager& Efx)
     P.Move(PT true, false);
     PAEND
 
-    Render(PDSphere(jet, 1.5)), PDBlob(pVec(0, 0, 200.f), 40.f);
+    Render(PDSphere(jet, 1.5));
     Render(PDRectangle(pVec(-10, -10, 0.0), pVec(20, 0, 0), pVec(0, 20, 0)));
     Render(PDPlane(pVec(0, 0, -10), pVec(0, 0, 1)));
 }
@@ -802,7 +800,7 @@ void Shower::PerFrame(ExecMode_e EM, EffectsManager& Efx)
 
 void Shower::StartEffect(EffectsManager& Efx)
 {
-    particleRate = min(100.f, Efx.maxParticles / particleLifetime);
+    particleRate = std::min(100.f, Efx.maxParticles / particleLifetime);
     SteerShape = irand(STEER_CNT);
     jet = Efx.center;
     djet = pRandVec() * 0.02f;

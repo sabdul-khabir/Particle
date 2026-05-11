@@ -22,7 +22,7 @@ else()
     set(CMAKE_DEBUG_POSTFIX "")
 endif()
 
-#add_subdirectory(${PROJECT_ROOT_DIR}/../DMcTools ${CMAKE_CURRENT_BINARY_DIR}/DMcTools)
+add_subdirectory(${PROJECT_ROOT_DIR}/DMcTools ${CMAKE_CURRENT_BINARY_DIR}/DMcTools)
 
 add_subdirectory(${PROJECT_ROOT_DIR}/ParticleLib ${CMAKE_CURRENT_BINARY_DIR}/ParticleLib)
 

@@ -1062,7 +1062,7 @@ PINLINE void PASPHNaive_Impl(Particle_t& m, const float dt, const float target_d
         pVec rVec = m.pos - p1->pos;
         float r = rVec.length();
         if (r < h && r > 0) {
-            float avg_p = (pressure + pressure_multiplier * (p1_density - target_density)) * 0.5f;
+            float avg_p = (pressure + pressure_multiplier * (density - target_density)) * 0.5f;
             pressureForce -= rVec * (m.mass * avg_p * (45.0f / (M_PI * powf(h, 6))) * powf(h - r, 2) / r);
             //pressureForce -= rVec * (m.mass * pressure * (45.0f / (pi * powf(h, 6))) * powf(h - r, 2) / r);
             viscosityForce += (p1->vel - m.vel) * (viscosity * m.mass * (45.0f / (pi * powf(h, 6))) * (h - r));
