@@ -402,7 +402,7 @@ void PAResolveCollisions::Execute(ParticleGroup& group, ParticleList::iterator i
     const Particle_t* endp = beginp + (iend - ibegin);
 
     std::vector<pVec> dv(iend - ibegin);
-    std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) { dv[&m - beginp] = PAResolveCollisionsDV_Impl(m, resilience, friction, beginp, endp); });
+    std::for_each(P_EXPOLP, ibegin, iend, [&](Particle_t& m) { dv[&m - beginp] = PAResolveCollisionsDV_Impl(m, resilience, friction, beginp, endp); });
     std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) { m.vel += dv[&m - beginp]; });
 }
 
@@ -424,7 +424,7 @@ void PASPH::Execute(ParticleGroup& group, ParticleList::iterator ibegin, Particl
 
     // Pass 1: density and pressure of every particle
     std::vector<float> density(n), pressure(n);
-    std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) {
+    std::for_each(P_EXPOLP, ibegin, iend, [&](Particle_t& m) {
         float rho = 0.f;
         for (const Particle_t* p1 = beginp; p1 != endp; ++p1) {
             const float r2 = (p1->pos - m.pos).lenSqr();
@@ -437,7 +437,7 @@ void PASPH::Execute(ParticleGroup& group, ParticleList::iterator ibegin, Particl
 
     // Pass 2: accelerations from the densities of pass 1
     std::vector<pVec> acc(n);
-    std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) {
+    std::for_each(P_EXPOLP, ibegin, iend, [&](Particle_t& m) {
         const size_t i = &m - beginp;
         pVec f(0.f);
         for (const Particle_t* p1 = beginp; p1 != endp; ++p1) {
@@ -471,7 +471,7 @@ void PADensityColor::Execute(ParticleGroup& group, ParticleList::iterator ibegin
 
     // Count all first, then recolor, so no particle is recolored while others read it
     std::vector<int> count(n);
-    std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) {
+    std::for_each(P_EXPOLP, ibegin, iend, [&](Particle_t& m) {
         int c = 0;
         for (const Particle_t* p1 = beginp; p1 != endp; ++p1)
             if (p1 != &m && (p1->pos - m.pos).lenSqr() < r2max) ++c;

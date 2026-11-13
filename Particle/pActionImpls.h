@@ -917,7 +917,7 @@ PINLINE void PAFollow_Impl(Particle_t& m, const float dt, const float magnitude,
     // ^^^ Above values do not vary per particle.
 
     const Particle_t* p1 = (&m) + 1;
-    if (p1 == iend) p1 = ibegin;
+    if (p1 == iend) return; // As documented, the last particle has no successor to follow
 
     // Accelerate toward the particle after me in the list.
     pVec toHim(p1->pos - m.pos);
@@ -1106,12 +1106,15 @@ PINLINE void PASinkVelocity_Impl(Particle_t& m, const float dt, const bool kill_
 // Project the particle onto the Look vector to get sort key and store it in tmp0
 PINLINE void PASort_Impl(Particle_t& m, const float dt, const pVec Eye, const pVec Look, const bool front_to_back, const bool clamp_negative)
 {
-    float scale = front_to_back ? -1.0f : 1.0f;
+    // Particles are sorted by ascending key, so negate the depth to put the farthest first for back-to-front order.
+    float scale = front_to_back ? 1.0f : -1.0f;
     // ^^^ Above values do not vary per particle.
 
-    pVec toP = m.pos - Eye;
-    float sortKey = m.tmp0 == P_MAXFLOAT ? P_MAXFLOAT : (dot(toP, Look) * scale); // Don't rescue particles slated for killing
-    m.tmp0 = (clamp_negative && sortKey < 0.f) ? 0.f : sortKey;
+    if (m.tmp0 == P_MAXFLOAT) return; // Don't rescue particles slated for killing
+
+    float depth = dot(m.pos - Eye, Look);
+    if (clamp_negative && depth < 0.f) depth = 0.f; // Particles behind the viewer all sort as if at the eye
+    m.tmp0 = depth * scale;
 }
 
 // Compute how many particles to add to the group right now
@@ -1134,7 +1137,9 @@ PINLINE void PASource_Impl(Particle_t& m, const float dt, const pDomain& gen_pos
     m.pos = gen_pos.Generate();
     m.posB = SrcSt.vertexB_tracks_ ? m.pos : SrcSt.VertexB_->Generate();
     m.up = SrcSt.Up_->Generate();
+    m.upB = m.up; // So Restore() returns particles to their initial orientation
     m.vel = SrcSt.Vel_->Generate();
+    m.velB = m.vel;
     m.rvel = SrcSt.RotVel_->Generate();
     m.size = SrcSt.Size_->Generate();
     m.color = SrcSt.Color_->Generate();

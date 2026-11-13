@@ -147,7 +147,8 @@ P.ParticleLoop(std::execution::par_unseq, [&](Particle_t& p) {
 
 ## 6. Where to Go Next
 
-1.  **Read `Example/Example.cpp`:** the smallest complete OpenGL program using the API.
-2.  **Read `DemoShared/Effects.cpp`:** many complete effects, including flocking, used by the Playground and Benchmark apps.
-3.  **Browse `Particle/pActionDecls.h`:** the documented list of all actions, shared by the inline and legacy APIs.
-4.  **Check your domains:** many problems, such as particles leaking through walls, come from planes and discs whose normals point the wrong way. For `PDPlane`, the side the normal points to is "inside".
+1.  **Run `Showcase`:** 17 short scenes that together use every action, domain and emission feature, each listing on screen exactly what it shows. Press C in the program for a table of which scene shows each feature, then read that scene's `Update()` in `Showcase/Showcase.cpp`.
+2.  **Read `Example/Example.cpp`:** the smallest complete OpenGL program using the API.
+3.  **Read `DemoShared/Effects.cpp`:** many complete effects, including flocking, used by the Playground and Benchmark apps.
+4.  **Browse `Particle/pActionDecls.h`:** the documented list of all actions, shared by the inline and legacy APIs.
+5.  **Check your domains:** many problems, such as particles leaking through walls, come from planes and discs whose normals point the wrong way. For `PDPlane`, the side the normal points to is "inside".

@@ -495,12 +495,15 @@ void PContextActions_t::Vertex(const pVec& pos, const pSourceState& SrcSt, const
     P.posB = SrcSt.vertexB_tracks_ ? pos : SrcSt.VertexB_->Generate();
     P.size = SrcSt.Size_->Generate();
     P.up = SrcSt.Up_->Generate();
+    P.upB = P.up; // So Restore() returns particles to their initial orientation
     P.vel = SrcSt.Vel_->Generate();
+    P.velB = P.vel;
     P.rvel = SrcSt.RotVel_->Generate();
     P.color = SrcSt.Color_->Generate();
     P.alpha = SrcSt.Alpha_->Generate().x();
     P.age = SrcSt.Age_ + pNRandf(SrcSt.AgeSigma_);
     P.mass = SrcSt.Mass_;
+    P.tmp0 = 0; // Not marked for killing
     P.data = data;
     // Note that we pass in the particle user data of the Vertex call, even if it's the default value.
     // We don't pass the SrcSt data. Note that this creates an inconsistency if building an action list.

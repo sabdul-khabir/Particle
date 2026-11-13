@@ -275,6 +275,12 @@ void TargetRotVelocity(PARG const pVec& rvel, ///< rotational velocity
 /// Accelerate particles in a vortex-like way.
 ///
 /// The vortex is a complicated action to use, but when done correctly it makes particles fly around like in a tornado.
+///
+/// The vortex is a funnel around the axis whose radius grows from zero at the tip to max_radius at tip + axis, curved by tightnessExponent.
+/// Particles outside the funnel (but within max_radius of the axis) are accelerated toward the axis by inSpeed. Particles inside the funnel
+/// have their velocity *replaced* by (axis direction * upSpeed + tangent * aroundSpeed) * dt / mass. So inside the funnel upSpeed and
+/// aroundSpeed act as speeds multiplied by dt, not as accelerations: at 60 steps per second, aroundSpeed = 600 gives about 10 units per second.
+/// Because the funnel has zero width at the tip, particles that start exactly at the tip's level are never lifted; put the tip below them.
 void Vortex(PARG const pVec& tip,          ///< tip of the vortex
             const pVec& axis,              ///< the ray along the center of the vortex
             const float tightnessExponent, ///< exponent that curves the vortex silhouette; 1.0 is a cone; greater curves inward
@@ -368,8 +374,9 @@ void MatchRotVelocity(PARG const float magnitude = 1.0f,  ///< scales each parti
 ///
 /// In the legacy API all impulses are computed from the velocities at the start of the action and then applied together, so the result
 /// does not depend on particle order. In the inline API each particle reads its neighbors' velocities while other particles are being
-/// updated, so results depend on processing order and are not deterministic with a parallel execution policy.
-/// Use the legacy API or a sequential ParticleLoop() when that matters.
+/// updated, so results depend on processing order and are not deterministic with a parallel execution policy. Because only the particle
+/// being processed is updated, a pair can also miss half of its impulse, which does not conserve momentum and can add energy, most
+/// noticeably when particle masses differ. Use the legacy API when accuracy matters.
 void ResolveCollisions(PARG const float resilience = 1.0f, ///< fraction of the approach speed kept after the collision: 0 = no bounce, 1 = perfectly elastic
                        const float friction = 0.0f         ///< Coulomb friction coefficient for sliding contact; 0 = frictionless
 );
