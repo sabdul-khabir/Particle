@@ -528,5 +528,156 @@ void PContextActions_t::Vortex(const pVec& center, const pVec& axis, const float
     PS->SendAction(std::shared_ptr<PActionBase>(A));
 }
 
+void PContextActions_t::VoxelField(const pVec& grid_origin, const pVec& grid_size, const int dim_x, const int dim_y, const int dim_z, const pVec* field_data,
+                                   const float magnitude, const bool interpolate)
+{
+    P_CHECK_ERR;
+    if (dim_x <= 0 || dim_y <= 0 || dim_z <= 0) throw PErrInvalidValue("VoxelField: dim_x, dim_y and dim_z must all be > 0.");
+    if (!(grid_size.x() > 0.f && grid_size.y() > 0.f && grid_size.z() > 0.f)) throw PErrInvalidValue("VoxelField: all components of grid_size must be > 0.");
+    if (field_data == nullptr) throw PErrInvalidValue("VoxelField: field_data must not be NULL.");
+
+    PAVoxelField* A = new PAVoxelField;
+
+    A->grid_origin = grid_origin;
+    A->grid_size = grid_size;
+    A->dim_x = dim_x;
+    A->dim_y = dim_y;
+    A->dim_z = dim_z;
+    A->field_data.assign(field_data, field_data + (size_t)dim_x * dim_y * dim_z);
+    A->magnitude = magnitude;
+    A->interpolate = interpolate;
+
+    A->SetKillsParticles(false);
+    A->SetDoNotSegment(false);
+
+    PS->SendAction(std::shared_ptr<PActionBase>(A));
+}
+
+void PContextActions_t::Waypoints(const pVec* waypoints, const int count, const float magnitude, const float arrival_radius, const bool loop, const float epsilon)
+{
+    P_CHECK_ERR;
+    PAWaypoints* A = new PAWaypoints;
+
+    if (waypoints != nullptr && count > 0) A->waypoints.assign(waypoints, waypoints + count);
+    A->magnitude = magnitude;
+    A->arrival_radius = arrival_radius;
+    A->loop = loop;
+    A->epsilon = epsilon;
+
+    A->SetKillsParticles(false);
+    A->SetDoNotSegment(false);
+
+    PS->SendAction(std::shared_ptr<PActionBase>(A));
+}
+
+void PContextActions_t::DensityColor(const float radius, const float min_neighbors, const float max_neighbors, const pVec& color_sparse, const pVec& color_dense)
+{
+    P_CHECK_ERR;
+    PADensityColor* A = new PADensityColor;
+
+    A->radius = radius;
+    A->min_neighbors = min_neighbors;
+    A->max_neighbors = max_neighbors;
+    A->color_sparse = color_sparse;
+    A->color_dense = color_dense;
+
+    A->SetKillsParticles(false);
+    A->SetDoNotSegment(true); // N^2
+
+    PS->SendAction(std::shared_ptr<PActionBase>(A));
+}
+
+void PContextActions_t::PositionColor(const pVec& pos_min, const pVec& pos_max, const pVec& color_min, const pVec& color_max)
+{
+    P_CHECK_ERR;
+    PAPositionColor* A = new PAPositionColor;
+
+    A->pos_min = pos_min;
+    A->pos_max = pos_max;
+    A->color_min = color_min;
+    A->color_max = color_max;
+
+    A->SetKillsParticles(false);
+    A->SetDoNotSegment(false);
+
+    PS->SendAction(std::shared_ptr<PActionBase>(A));
+}
+
+void PContextActions_t::RandomColor(const pDomain& dom)
+{
+    P_CHECK_ERR;
+    PARandomColor* A = new PARandomColor;
+
+    A->gen_color = dom.copy();
+
+    A->SetKillsParticles(false);
+    A->SetDoNotSegment(false);
+
+    PS->SendAction(std::shared_ptr<PActionBase>(A));
+}
+
+void PContextActions_t::ResolveCollisions(const float resilience, const float friction)
+{
+    P_CHECK_ERR;
+    PAResolveCollisions* A = new PAResolveCollisions;
+
+    A->resilience = resilience;
+    A->friction = friction;
+
+    A->SetKillsParticles(false);
+    A->SetDoNotSegment(true); // N^2
+
+    PS->SendAction(std::shared_ptr<PActionBase>(A));
+}
+
+void PContextActions_t::SPH(const float smoothing_radius, const float target_density, const float pressure_multiplier, const float viscosity)
+{
+    P_CHECK_ERR;
+    if (!(smoothing_radius > 0.f)) throw PErrInvalidValue("SPH: smoothing_radius must be > 0.");
+    PASPH* A = new PASPH;
+
+    A->smoothing_radius = smoothing_radius;
+    A->target_density = target_density;
+    A->pressure_multiplier = pressure_multiplier;
+    A->viscosity = viscosity;
+
+    A->SetKillsParticles(false);
+    A->SetDoNotSegment(true); // N^2
+
+    PS->SendAction(std::shared_ptr<PActionBase>(A));
+}
+
+void PContextActions_t::VelocityColor(const float min_speed, const float max_speed, const pVec& color_slow, const pVec& color_fast)
+{
+    P_CHECK_ERR;
+    PAVelocityColor* A = new PAVelocityColor;
+
+    A->min_speed = min_speed;
+    A->max_speed = max_speed;
+    A->color_slow = color_slow;
+    A->color_fast = color_fast;
+
+    A->SetKillsParticles(false);
+    A->SetDoNotSegment(false);
+
+    PS->SendAction(std::shared_ptr<PActionBase>(A));
+}
+
+void PContextActions_t::VelocitySize(const float min_speed, const float max_speed, const pVec& size_slow, const pVec& size_fast)
+{
+    P_CHECK_ERR;
+    PAVelocitySize* A = new PAVelocitySize;
+
+    A->min_speed = min_speed;
+    A->max_speed = max_speed;
+    A->size_slow = size_slow;
+    A->size_fast = size_fast;
+
+    A->SetKillsParticles(false);
+    A->SetDoNotSegment(false);
+
+    PS->SendAction(std::shared_ptr<PActionBase>(A));
+}
+
 #undef P_CHECK_ERR
 }; // namespace PAPI

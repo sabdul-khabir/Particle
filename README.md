@@ -11,6 +11,8 @@ April 18, 2022
 Hosted at https://github.com/davemc0/Particle.git.
 (Previously hosted for 15 years at: http://www.particlesystems.org.)
 
+New to the API? Start with the [Getting Started guide](./GettingStarted.md).
+
 Documentation is [here](./ParticleLib/doc/html/index.html).
 
 Change log is [here](./ChangeLog.html).

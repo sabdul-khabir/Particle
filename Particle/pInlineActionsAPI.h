@@ -174,6 +174,20 @@ PINLINE void PContextActions_t::Vortex(Particle_t& m, const pVec& tip, const pVe
     PAVortex_Impl(m, PSh.get_dt(), tip, axis, tightnessExponent, max_radius, inSpeed, upSpeed, aroundSpeed);
 }
 
+PINLINE void PContextActions_t::VoxelField(Particle_t& m, const pVec& grid_origin, const pVec& grid_size, const int dim_x, const int dim_y, const int dim_z,
+                                           const pVec* field_data, const float magnitude, const bool interpolate)
+{
+    P_CHECK_ERR;
+    PAVoxelField_Impl(m, PSh.get_dt(), grid_origin, grid_size, dim_x, dim_y, dim_z, field_data, magnitude, interpolate);
+}
+
+PINLINE void PContextActions_t::Waypoints(Particle_t& m, const pVec* waypoints, const int count, const float magnitude, const float arrival_radius,
+                                          const bool loop, const float epsilon)
+{
+    P_CHECK_ERR;
+    PAWaypoints_Impl(m, PSh.get_dt(), waypoints, count, magnitude, arrival_radius, loop, epsilon);
+}
+
 //////////////////////////////////////////////////////////////////
 // Inter-particle actions
 
@@ -199,6 +213,39 @@ PINLINE void PContextActions_t::MatchRotVelocity(Particle_t& m, const float magn
 {
     P_CHECK_ERR;
     PAMatchRotVelocity_Impl(m, PSh.get_dt(), magnitude, epsilon, max_radius, PSh.get_const_pgroup_begin(), PSh.get_const_pgroup_end());
+}
+
+PINLINE void PContextActions_t::ResolveCollisions(Particle_t& m, const float resilience, const float friction)
+{
+    P_CHECK_ERR;
+    m.vel += PAResolveCollisionsDV_Impl(m, resilience, friction, PSh.get_const_pgroup_begin(), PSh.get_const_pgroup_end());
+}
+
+//////////////////////////////////////////////////////////////////
+// Attribute mapping actions
+
+PINLINE void PContextActions_t::PositionColor(Particle_t& m, const pVec& pos_min, const pVec& pos_max, const pVec& color_min, const pVec& color_max)
+{
+    P_CHECK_ERR;
+    PAPositionColor_Impl(m, PSh.get_dt(), pos_min, pos_max, color_min, color_max);
+}
+
+PINLINE void PContextActions_t::RandomColor(Particle_t& m, const pDomain& dom)
+{
+    P_CHECK_ERR;
+    PARandomColor_Impl(m, PSh.get_dt(), dom);
+}
+
+PINLINE void PContextActions_t::VelocityColor(Particle_t& m, const float min_speed, const float max_speed, const pVec& color_slow, const pVec& color_fast)
+{
+    P_CHECK_ERR;
+    PAVelocityColor_Impl(m, PSh.get_dt(), min_speed, max_speed, color_slow, color_fast);
+}
+
+PINLINE void PContextActions_t::VelocitySize(Particle_t& m, const float min_speed, const float max_speed, const pVec& size_slow, const pVec& size_fast)
+{
+    P_CHECK_ERR;
+    PAVelocitySize_Impl(m, PSh.get_dt(), min_speed, max_speed, size_slow, size_fast);
 }
 
 //////////////////////////////////////////////////////////////////

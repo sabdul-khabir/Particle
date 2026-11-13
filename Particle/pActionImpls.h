@@ -575,6 +575,34 @@ PINLINE void PAGravity_Impl(Particle_t& m, const float dt, const pVec direction)
     m.vel += ddir;
 }
 
+// Accelerate particles toward their current waypoint, advancing to the next waypoint on arrival.
+// The particle's data attribute holds the index of its current waypoint.
+PINLINE void PAWaypoints_Impl(Particle_t& m, const float dt, const pVec* waypoints, const int count, const float magnitude, const float arrival_radius,
+                              const bool loop, const float epsilon)
+{
+    if (waypoints == nullptr || count <= 0) return;
+
+    const pdata_t ucount = (pdata_t)count;
+    pdata_t& idx = m.data;
+    if (idx >= ucount) idx = 0;
+
+    pVec dir = waypoints[idx] - m.pos;
+    float r2 = dir.lenSqr();
+
+    // On arrival, steer toward the next waypoint starting this time step.
+    if (r2 < fsqr(arrival_radius)) {
+        pdata_t next = idx + 1;
+        if (next >= ucount) next = loop ? 0 : idx;
+        if (next != idx) {
+            idx = next;
+            dir = waypoints[idx] - m.pos;
+            r2 = dir.lenSqr();
+        }
+    }
+
+    m.vel += dir * (magnitude * dt / (sqrtf(r2) + epsilon));
+}
+
 // For particles in the domain of influence, accelerate them with a domain.
 PINLINE void PAJet_Impl(Particle_t& m, const float dt, const pDomain& dom, const pDomain& acc)
 {
@@ -591,6 +619,63 @@ PINLINE void PAMove_Impl(Particle_t& m, const float dt, const bool move_velocity
     m.age += dt;
     if (move_rotational_velocity) { m.up += m.rvel * dt; }
     if (move_velocity) { m.pos += m.vel * dt; }
+}
+
+// Helper for PAVoxelField_Impl: find the two cell indices bracketing coordinate u (in cell units) and the blend weight between them.
+// Samples are at cell centers; indices are clamped so particles in the outer half-cell use the edge value.
+PINLINE void PAVoxelBracket_Impl(const float u, const int dim, int& i0, int& i1, float& t)
+{
+    const float c = u - 0.5f;
+    const float fc = floorf(c);
+    t = c - fc;
+    i0 = (int)fc;
+    i1 = i0 + 1;
+    i0 = i0 < 0 ? 0 : (i0 > dim - 1 ? dim - 1 : i0);
+    i1 = i1 < 0 ? 0 : (i1 > dim - 1 ? dim - 1 : i1);
+}
+
+// Accelerate particles by a vector field sampled on a regular 3D grid.
+// field_data has dim_x * dim_y * dim_z entries with x varying fastest.
+PINLINE void PAVoxelField_Impl(Particle_t& m, const float dt, const pVec& grid_origin, const pVec& grid_size, const int dim_x, const int dim_y,
+                               const int dim_z, const pVec* field_data, const float magnitude, const bool interpolate)
+{
+    if (field_data == nullptr || dim_x <= 0 || dim_y <= 0 || dim_z <= 0) return;
+    if (!(grid_size.x() > 0.f && grid_size.y() > 0.f && grid_size.z() > 0.f)) return;
+
+    // Particle position in cell units, so cell (x,y,z) spans [x, x+1) etc.
+    const float ux = (m.pos.x() - grid_origin.x()) * ((float)dim_x / grid_size.x());
+    const float uy = (m.pos.y() - grid_origin.y()) * ((float)dim_y / grid_size.y());
+    const float uz = (m.pos.z() - grid_origin.z()) * ((float)dim_z / grid_size.z());
+
+    // Written so NaN positions also fail the test, which keeps the float-to-int conversions below in range.
+    if (!(ux >= 0.f && ux < (float)dim_x && uy >= 0.f && uy < (float)dim_y && uz >= 0.f && uz < (float)dim_z)) return;
+
+    pVec f;
+    if (interpolate) {
+        int x0, x1, y0, y1, z0, z1;
+        float tx, ty, tz;
+        PAVoxelBracket_Impl(ux, dim_x, x0, x1, tx);
+        PAVoxelBracket_Impl(uy, dim_y, y0, y1, ty);
+        PAVoxelBracket_Impl(uz, dim_z, z0, z1, tz);
+
+        auto at = [&](int x, int y, int z) -> const pVec& { return field_data[((size_t)z * dim_y + y) * dim_x + x]; };
+        auto lerp = [](const pVec& a, const pVec& b, float t) { return a + (b - a) * t; };
+
+        const pVec c00 = lerp(at(x0, y0, z0), at(x1, y0, z0), tx);
+        const pVec c10 = lerp(at(x0, y1, z0), at(x1, y1, z0), tx);
+        const pVec c01 = lerp(at(x0, y0, z1), at(x1, y0, z1), tx);
+        const pVec c11 = lerp(at(x0, y1, z1), at(x1, y1, z1), tx);
+        f = lerp(lerp(c00, c10, ty), lerp(c01, c11, ty), tz);
+    } else {
+        // u >= 0 here, so truncation is floor. The clamp guards against float rounding at the upper edge.
+        int x = (int)ux, y = (int)uy, z = (int)uz;
+        x = x < dim_x ? x : dim_x - 1;
+        y = y < dim_y ? y : dim_y - 1;
+        z = z < dim_z ? z : dim_z - 1;
+        f = field_data[((size_t)z * dim_y + y) * dim_x + x];
+    }
+
+    m.vel += f * (magnitude * dt);
 }
 
 // Accelerate particles towards a line
@@ -907,6 +992,89 @@ PINLINE void PAMatchRotVelocity_Impl(Particle_t& m, const float dt, const float 
             m.rvel += acc;
         }
     }
+}
+
+// Compute the velocity change of particle m due to collisions with the other particles in [ibegin, iend).
+// Spheres have radius size.x() and mass mass; mass <= 0 is immovable. Returns the change rather than applying it so the legacy
+// API can compute all particles' changes from the same starting velocities before applying any of them.
+PINLINE pVec PAResolveCollisionsDV_Impl(const Particle_t& m, const float resilience, const float friction, const Particle_t* ibegin, const Particle_t* iend)
+{
+    pVec dv(0.f);
+    if (m.mass <= 0.f) return dv; // Immovable
+
+    const float invM = 1.f / m.mass;
+
+    for (const Particle_t* p1 = ibegin; p1 != iend; ++p1) {
+        if (p1 == &m) continue;
+
+        const pVec toHim = p1->pos - m.pos;
+        const float distSqr = toHim.lenSqr();
+        const float radiusSum = m.size.x() + p1->size.x();
+        if (!(distSqr > 0.f && distSqr < fsqr(radiusSum))) continue; // Not touching, or coincident (no defined normal)
+
+        const pVec normal = toHim / sqrtf(distSqr); // From m toward p1
+        const pVec relVel = m.vel - p1->vel;        // m's velocity as seen by p1
+        const float approachSpeed = dot(relVel, normal);
+        if (approachSpeed <= 0.f) continue; // Already separating
+
+        const float invMSum = invM + (p1->mass > 0.f ? 1.f / p1->mass : 0.f);
+
+        // Normal impulse magnitude; applied to m along -normal (away from p1).
+        const float jn = (1.f + resilience) * approachSpeed / invMSum;
+        dv -= normal * (jn * invM);
+
+        // Coulomb friction opposes the tangential relative velocity, limited to stopping the slide.
+        if (friction > 0.f) {
+            const pVec relTan = relVel - normal * approachSpeed;
+            const float tanSpeed = relTan.length();
+            if (tanSpeed > 0.f) {
+                const float jt = fminf(friction * jn, tanSpeed / invMSum);
+                dv -= relTan * (jt * invM / tanSpeed);
+            }
+        }
+    }
+
+    return dv;
+}
+
+//////////////////////////////////////////////////////////////////
+// Attribute mapping actions
+
+// Clamp t to [0,1]
+PINLINE float PAClamp01_Impl(const float t) { return t < 0.f ? 0.f : (t > 1.f ? 1.f : t); }
+
+// Weight in [0,1] for mapping speed onto the [min_speed, max_speed] range.
+PINLINE float PASpeedWeight_Impl(const float speed, const float min_speed, const float max_speed)
+{
+    if (max_speed <= min_speed) return speed > min_speed ? 1.f : 0.f;
+    return PAClamp01_Impl((speed - min_speed) / (max_speed - min_speed));
+}
+
+// Map each position component onto the matching color component
+PINLINE void PAPositionColor_Impl(Particle_t& m, const float dt, const pVec& pos_min, const pVec& pos_max, const pVec& color_min, const pVec& color_max)
+{
+    const pVec range = pos_max - pos_min;
+    const pVec rel = m.pos - pos_min;
+    const pVec t(range.x() != 0.f ? PAClamp01_Impl(rel.x() / range.x()) : 0.f, range.y() != 0.f ? PAClamp01_Impl(rel.y() / range.y()) : 0.f,
+                 range.z() != 0.f ? PAClamp01_Impl(rel.z() / range.z()) : 0.f);
+    m.color = color_min + CompMult(color_max - color_min, t);
+}
+
+// Randomly drift color, like RandomAccel does for velocity
+PINLINE void PARandomColor_Impl(Particle_t& m, const float dt, const pDomain& dom) { m.color += dom.Generate() * dt; }
+
+// Map speed onto color
+PINLINE void PAVelocityColor_Impl(Particle_t& m, const float dt, const float min_speed, const float max_speed, const pVec& color_slow, const pVec& color_fast)
+{
+    const float t = PASpeedWeight_Impl(m.vel.length(), min_speed, max_speed);
+    m.color = color_slow + (color_fast - color_slow) * t;
+}
+
+// Map speed onto size
+PINLINE void PAVelocitySize_Impl(Particle_t& m, const float dt, const float min_speed, const float max_speed, const pVec& size_slow, const pVec& size_fast)
+{
+    const float t = PASpeedWeight_Impl(m.vel.length(), min_speed, max_speed);
+    m.size = size_slow + (size_fast - size_slow) * t;
 }
 
 //////////////////////////////////////////////////////////////////

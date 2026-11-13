@@ -11,6 +11,7 @@
 #include "Particle/pError.h"
 #include "Particle/pVec.h"
 
+#include <memory>
 #include <string>
 #include <vector>
 
