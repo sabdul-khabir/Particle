@@ -7,6 +7,25 @@
 <body>
     See full change log in git commit history, of course.
     <h1>
+        Unreleased Changes
+    </h1>
+    <ul>
+        <li>New action Waypoints() steers particles along a path of points, optionally looping. It stores each particle's current waypoint in its user data attribute.</li>
+        <li>New action VoxelField() applies accelerations sampled from a 3D grid, with optional trilinear interpolation.</li>
+        <li>New action ResolveCollisions() bounces particles off each other as spheres, with resilience and Coulomb friction.</li>
+        <li>New legacy-only action SPH() simulates fluids using Smoothed Particle Hydrodynamics.</li>
+        <li>New attribute mapping actions: PositionColor(), VelocityColor(), VelocitySize(), RandomColor(), and legacy-only DensityColor().</li>
+        <li>pSourceState::ColorB() added and reserved for future use; it is not yet applied to particles.</li>
+        <li>Headers now include &lt;memory&gt; and &lt;algorithm&gt; themselves, so the API builds with GCC and Clang, not just MSVC.</li>
+        <li>Added GettingStarted.md.</li>
+        <li>New Showcase program: 17 scenes that together demonstrate every action, domain, and emission feature, each labeled on screen. It has a headless self test (--selftest) and a screenshot mode (--shots).</li>
+        <li>Fixed Sort(): it sorted front-to-back when back-to-front was requested, and its clamp_negative option clamped the wrong particles.</li>
+        <li>Fixed Follow(): as documented, the last particle no longer follows the first.</li>
+        <li>Fixed Source() and Vertex() leaving upB and velB uninitialized, so Restore() now returns up vectors to their initial values. Vertex() also clears the kill flag.</li>
+        <li>The O(N^2) passes of legacy ResolveCollisions(), SPH() and DensityColor() now run in parallel.</li>
+        <li>Documented how Vortex() treats upSpeed and aroundSpeed, and that inline ResolveCollisions() does not conserve momentum.</li>
+    </ul>
+    <h1>
         Version 3.0.0 Changes (April 2022)
     </h1>
     <ul>

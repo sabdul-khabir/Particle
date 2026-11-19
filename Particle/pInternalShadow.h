@@ -10,6 +10,8 @@
 #ifndef PInternalShadow_h
 #define PInternalShadow_h
 
+#include <memory>
+
 namespace PAPI {
 struct Particle_t;
 

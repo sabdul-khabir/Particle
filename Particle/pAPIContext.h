@@ -18,6 +18,8 @@
 #include <algorithm>
 #include <vector>
 
+#include <algorithm>
+
 namespace PAPI {
 
 class PInternalState_t; // The API-internal struct containing the context's state. Don't try to use it.
@@ -368,6 +370,38 @@ public:
               const pVec& look_dir,             ///< direction vector of projection line; does not need to be normalized
               const bool front_to_back = false, ///< true to sort in front-to-back order instead of back-to-front
               const bool clamp_negative = false ///< true to set negative dot product values to zero before sorting
+    );
+
+    /// Simulate the particles as a fluid using Smoothed Particle Hydrodynamics (SPH).
+    ///
+    /// Each particle's density is estimated from the masses of the particles within smoothing_radius of it. Particles in regions denser than
+    /// target_density push each other apart with a force proportional to pressure_multiplier * (density - target_density). Regions less
+    /// dense than target_density exert no pressure, which avoids particles clumping. A viscosity term pulls each particle's velocity toward
+    /// its neighbors' velocities. The resulting accelerations are added to the particle velocities; call Move() afterward.
+    ///
+    /// The density scale depends on smoothing_radius and particle mass. A particle alone has density of roughly
+    /// mass * 1.57 / smoothing_radius^3, so a target_density several times that keeps a few neighbors within reach of each particle.
+    /// SPH is stiff: if particles explode apart, reduce dt or pressure_multiplier, or add viscosity.
+    ///
+    /// This action is only available in the legacy (non-inline) API because it needs every particle's density before it can compute any
+    /// particle's forces. It is O(N^2) in the number of particles in the group.
+    void SPH(const float smoothing_radius,    ///< particles further apart than this do not interact. Must be > 0.
+             const float target_density,      ///< rest density of the fluid
+             const float pressure_multiplier, ///< stiffness: how strongly density above target_density pushes particles apart
+             const float viscosity            ///< how strongly neighboring particles' velocities are averaged; 0 for none
+    );
+
+    /// Set particle color from the number of nearby particles.
+    ///
+    /// For each particle, counts the other particles within radius. Particles with min_neighbors or fewer get color_sparse; particles with
+    /// max_neighbors or more get color_dense. Colors in between are linearly interpolated.
+    ///
+    /// This action is only available in the legacy (non-inline) API. It is O(N^2) in the number of particles in the group.
+    void DensityColor(const float radius,       ///< count particles within this distance
+                      const float min_neighbors, ///< neighbor count mapped to color_sparse
+                      const float max_neighbors, ///< neighbor count mapped to color_dense
+                      const pVec& color_sparse,  ///< color for particles with min_neighbors or fewer
+                      const pVec& color_dense    ///< color for particles with max_neighbors or more
     );
 
     /// Add particles with positions in the specified domain.
