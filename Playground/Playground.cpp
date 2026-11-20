@@ -8,15 +8,13 @@
 #include "../DemoShared/DrawGroups.h"
 #include "../DemoShared/Effects.h"
 #include "../DemoShared/Monarch.h"
+#include "LocalUtils.h"
 #include "Particle/pAPI.h"
 
-// The following header files are part of DMcTools.
-// DMcTools is part of the same source distribution as the Particle API.
-#include "Image/tImage.h"
-#include "Math/Random.h"
-#include "Util/Assert.h"
-#include "Util/StatTimer.h"
-#include "Util/Timer.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+using namespace PAPI;
 
 // OpenGL
 #include "GL/glew.h"
@@ -47,7 +45,7 @@ bool SortParticles = false;
 
 // Internal state
 // ExecMode_e ExecMode = Internal_Mode; // Execute compiled action lists on host for non-varying effects or immediate for varying
-ExecMode_e ExecMode = Immediate_Mode; // Execute compiled action lists on host for non-varying effects or immediate for varying
+ExecMode_e ExecMode = Inline_Mode; // Execute parallel loop over particles
 ParticleContext_t P;
 StatTimer FPSClock(100);
 Timer RandomDemoClock;
@@ -241,7 +239,10 @@ void MakeGaussianSpotTexture()
             if (x < B || x >= DIM - B || y < B || y >= DIM - B)
                 img[y * DIM + x] = 0;
             else {
-                img[y * DIM + x] = TEX_SCALE * Gaussian2(x - DIM2, y - DIM2, (DIM * 0.15));
+               img[y * DIM + x] =
+                  TEX_SCALE * Gaussian2(static_cast<float>(x - DIM2),
+                     static_cast<float>(y - DIM2),
+                     DIM * 0.15f);
             }
         }
     }
@@ -271,7 +272,12 @@ void MakeSphereTexture()
 
     for (int y = 0; y < DIM; y++) {
         for (int x = 0; x < DIM; x++) {
-            pVec p = pVec(x, y, 0) - pVec(CTR, CTR, 0);
+           pVec p = pVec(static_cast<float>(x),
+              static_cast<float>(y),
+              0.0f)
+              - pVec(static_cast<float>(CTR),
+                 static_cast<float>(CTR),
+                 0.0f);
             float len = p.length();
             float z = sqrt(RAD * RAD - len * len);
             p.z() = z;
@@ -482,16 +488,18 @@ void Draw()
         glDisable(GL_TEXTURE_2D);
         break;
     case PRIM_QUAD:
+    {
         glEnable(GL_TEXTURE_2D);
         pVec view = (At - Cam);
         view.normalize();
         DrawGroupAsQuadSprites(P, view, pVec(0, 0, 1), 1.f, true, false, false);
         glDisable(GL_TEXTURE_2D);
+    }
         break;
     case PRIM_NONE:
         // Don't draw.
         break;
-    default: PASSERT(0, "Bad PrimType");
+    default: PASSERT(0, "Bad PrimType");break;
     }
 
     GL_ASSERT();
@@ -511,7 +519,7 @@ void Draw()
         int cnt = (int)P.GetGroupCount();
         char exCh = (ExecMode == Immediate_Mode) ? 'I' : (ExecMode == ActionList_Mode) ? 'N' : 'C';
 
-        sprintf(msg, " %c%c%c%c%c%c%c%c n=%6d iters=%d fps=%02.2f %s %s t=%1.2f", exCh, MotionBlur ? 'M' : ' ', FreezeParticles ? 'F' : ' ',
+        sprintf_s(msg, " %c%c%c%c%c%c%c%c n=%6d iters=%d fps=%02.2f %s %s t=%1.2f", exCh, MotionBlur ? 'M' : ' ', FreezeParticles ? 'F' : ' ',
                 UseEffectSettings ? 'A' : ' ', RandomDemo ? 'R' : ' ', DepthTest ? 'D' : ' ', camCtrl.CameraMotion ? 'C' : ' ', SortParticles ? 'S' : ' ', cnt,
                 Efx.simStepsPerFrame, fps, PrimTypeNames[PrimType], Efx.GetCurEffectName().c_str(), RandomDemoClock.Read());
 
@@ -577,13 +585,11 @@ void menu(int item)
         break;
     case 'i':
         if (ExecMode == Immediate_Mode)
-            ExecMode = ActionList_Mode;
-        else if (ExecMode == ActionList_Mode)
             ExecMode = Inline_Mode;
         else
             ExecMode = Immediate_Mode;
 
-        std::cerr << "Switching to " << ((ExecMode == Immediate_Mode) ? "Immediate" : (ExecMode == ActionList_Mode) ? "ActionList" : "Inline") << " mode.\n";
+        std::cerr << "Switching to " << ((ExecMode == Immediate_Mode) ? "Immediate" : "Inline") << " mode.\n";
         break;
     case 'm': MotionBlur = !MotionBlur; break;
     case 'a': UseEffectSettings = !UseEffectSettings; break;
@@ -724,7 +730,14 @@ int main(int argc, char** argv)
 
     Args(argc, argv);
     try {
-        Efx.SetPhoto(new uc3Image(FName));
+        int w, h, c;
+        unsigned char* data = stbi_load(FName, &w, &h, &c, 3);
+        if (data) {
+            uc3Image* img = new uc3Image(w, h);
+            memcpy(img->pix.data(), data, w * h * 3);
+            Efx.SetPhoto(img);
+            stbi_image_free(data);
+        }
     }
     catch (...) {
         std::cerr << "Failed to load " << FName << '\n';

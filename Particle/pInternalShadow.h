@@ -5,8 +5,12 @@
 /// A shadow copy of some of the private library internals
 /// Library users need not access this file.
 
+#include <memory> // For std::shared_ptr
+
 #ifndef PInternalShadow_h
 #define PInternalShadow_h
+
+#include <memory>
 
 namespace PAPI {
 struct Particle_t;

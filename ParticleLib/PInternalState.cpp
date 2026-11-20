@@ -57,6 +57,27 @@ PInternalState_t::PInternalState_t() : in_call_list(false), in_new_list(false), 
     working_set_size = (0x100000 / sizeof(Particle_t)); // Use 1 MB of cache
 }
 
+PInternalState_t::~PInternalState_t()
+{
+    // unique_ptr in all_thread_buffers handles memory cleanup
+}
+
+// Returns the thread-local buffer for this context.
+// This is highly performant as it avoids locks once the buffer is registered for the thread.
+std::vector<Particle_t>& PInternalState_t::GetLocalDeferredBuffer()
+{
+    static thread_local PInternalState_t* cached_ps = nullptr;
+    static thread_local std::vector<Particle_t>* cached_buf = nullptr;
+
+    if (cached_ps == this) return *cached_buf;
+
+    all_thread_buffers.emplace_back(std::make_unique<std::vector<Particle_t>>());
+    cached_ps = this;
+    cached_buf = all_thread_buffers.back().get();
+    cached_buf->reserve(1024); // Reduce reallocations during birth spikes
+    return *cached_buf;
+}
+
 // Return an index into the list of particle groups where p_group_count groups can be added
 int PInternalState_t::GeneratePGroups(int pgroups_requested)
 {

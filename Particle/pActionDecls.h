@@ -1,3 +1,17 @@
+/// Add new particles using the current particle as a source.
+/// This allows for trails, sparks from moving objects, etc., in inline mode.
+void Source(PARG const float particle_rate, ///< how many particles to add per unit time
+            const pDomain& dom,        ///< particle positions are relative to this particle if used in inline mode
+            const pSourceState& SrcSt  ///< all other particle attributes are chosen from this source state
+);
+
+/// Add a single particle at the specified location.
+/// In inline mode, the vertex 'v' is treated as an offset from the current particle's position.
+void Vertex(PARG const pVec& v,             ///< position offset of particle to create
+            const pSourceState& SrcSt, ///< all other particle attributes are chosen from this source state
+            const pdata_t data = 0     ///< application data to be passed to the birth and death callbacks
+);
+
 /// Steer particles away from a domain of space.
 ///
 /// Particles are tested to see whether they will pass from being outside the specified domain to being inside it within look_ahead time
@@ -5,7 +19,7 @@
 /// domain being avoided.
 ///
 /// At present the only domains for which Avoid() is implemented are PDSphere, PDRectangle, PDTriangle, PDDisc and PDPlane.
-void Avoid(PARG const float magnitude, ///< how drastically the particle velocities are modified to avoid the obstacle at each time step.
+void Avoid(PARG const float magnitude, ///< how drastically the particle velocities are modified to avoid the obstacle
            const float epsilon,        ///< added to distance to dampen acceleration
            const float look_ahead,     ///< how far forward along the velocity vector to look for the obstacle
            const pDomain& dom          ///< the space to avoid
@@ -18,10 +32,10 @@ void Avoid(PARG const float magnitude, ///< how drastically the particle velocit
 /// velocity vector is decomposed into components normal to the surface and tangent to the surface. The direction of the normal component
 /// is reversed, and friction, resilience and fric_min_vel are applied to the components. They are then recomposed into a new velocity heading
 /// away from the surface.
-///
+/// 
 /// Since particles are tested to see whether they would pass through the domain if Move() were called now, it is best to have Bounce()
 /// be the last action that modifies a particle's velocity before calling Move().
-/// Also, actions such as RandomDisplace() that modify a particle's position directly, rather than modifying its velocity vector, may yield
+/// Also, actions such as RandomDisplace() that modify a particle's position directly may yield
 /// unsatisfying results when used with Bounce().
 ///
 /// At present Bounce() is not implemented for all domains. Feel free to implement others. For spheres, the particle bounces off either the inside or the
@@ -129,6 +143,39 @@ void OrbitPoint(PARG const pVec& center,            ///< accelerate toward this 
                 const float epsilon = P_EPS,        ///< added to distance to dampen acceleration
                 const float max_radius = P_MAXFLOAT ///< no particle further than max_radius from the center is affected
 );
+
+/// Accelerate particles along a path of waypoints.
+///
+/// Each particle is accelerated toward its current waypoint with an acceleration of length magnitude (reduced slightly by epsilon when very
+/// close to the waypoint). Once the particle comes within arrival_radius of its current waypoint, it advances to the next one. After the last
+/// waypoint the particle either returns to the first (loop == true) or keeps steering toward the last one (loop == false).
+///
+/// IMPORTANT: The index of each particle's current waypoint is stored in the particle's user data attribute (Particle_t::data). That means:
+/// - Particles should be created with data == 0 (the default for pSourceState::Data() and Vertex()) to start at the first waypoint.
+///   Any out-of-range value also restarts the particle at the first waypoint.
+/// - Do not use this action on particles whose data attribute carries application data such as a pointer or handle;
+///   it will be overwritten, and birth/death callbacks will receive the waypoint index instead.
+///
+/// The acceleration is not damped, so particles tend to overshoot and circle a waypoint whose arrival_radius is small relative to
+/// their speed. Use an arrival_radius comparable to the distance a particle travels in a few time steps, or combine this action with
+/// Damping() or SpeedClamp().
+///
+/// In the inline API the waypoints array is read in place and must remain valid until ParticleLoop() returns. In the legacy API
+/// the waypoints are copied, so the array may be freed after the call, including when building an action list.
+void Waypoints(PARG const pVec* waypoints,        ///< array of count waypoint positions, in the order they are visited
+               const int count,                   ///< number of waypoints. If count <= 0 or waypoints is NULL the action does nothing.
+               const float magnitude = 1.0f,      ///< length of the acceleration vector toward the current waypoint
+               const float arrival_radius = 1.0f, ///< a particle closer than this to its current waypoint advances to the next waypoint
+               const bool loop = true,            ///< true to return to the first waypoint after the last; false to stay at the last waypoint
+               const float epsilon = P_EPS        ///< added to distance to dampen acceleration very near a waypoint
+);
+
+/// Accelerate particles toward the current waypoint.
+/// Once a particle is within a certain distance, it starts being attracted to the next waypoint in the list.
+void Waypoints(PARG const pVec* waypoints,   ///< array of waypoint positions
+               const int count,              ///< number of waypoints
+               const float magnitude = 1.0f, ///< acceleration magnitude
+               const float epsilon = P_EPS);
 
 /// Accelerate particles in random directions.
 ///
@@ -249,6 +296,12 @@ void TargetRotVelocity(PARG const pVec& rvel, ///< rotational velocity
 /// Accelerate particles in a vortex-like way.
 ///
 /// The vortex is a complicated action to use, but when done correctly it makes particles fly around like in a tornado.
+///
+/// The vortex is a funnel around the axis whose radius grows from zero at the tip to max_radius at tip + axis, curved by tightnessExponent.
+/// Particles outside the funnel (but within max_radius of the axis) are accelerated toward the axis by inSpeed. Particles inside the funnel
+/// have their velocity *replaced* by (axis direction * upSpeed + tangent * aroundSpeed) * dt / mass. So inside the funnel upSpeed and
+/// aroundSpeed act as speeds multiplied by dt, not as accelerations: at 60 steps per second, aroundSpeed = 600 gives about 10 units per second.
+/// Because the funnel has zero width at the tip, particles that start exactly at the tip's level are never lifted; put the tip below them.
 void Vortex(PARG const pVec& tip,          ///< tip of the vortex
             const pVec& axis,              ///< the ray along the center of the vortex
             const float tightnessExponent, ///< exponent that curves the vortex silhouette; 1.0 is a cone; greater curves inward
@@ -257,6 +310,40 @@ void Vortex(PARG const pVec& tip,          ///< tip of the vortex
             const float upSpeed,           ///< vertical acceleration of particles INSIDE the vortex. Can be negative to apply gravity.
             const float aroundSpeed        ///< acceleration around vortex of particles INSIDE the vortex.
 );
+
+/// Accelerate particles by a vector field sampled on a regular 3D grid.
+///
+/// The grid is an axis-aligned box from grid_origin to grid_origin + grid_size, divided into dim_x * dim_y * dim_z cells. Each cell holds one
+/// acceleration vector, defined at the center of the cell. For each particle inside the box, the field is sampled at the particle's position
+/// and (field_value * magnitude * dt) is added to the particle's velocity. Particles outside the box are not affected.
+///
+/// field_data is laid out with x varying fastest, then y, then z: the vector for cell (x, y, z) is
+/// field_data[(z * dim_y + y) * dim_x + x].
+///
+/// With interpolate == true the field is trilinearly interpolated between neighboring cell centers, which gives smooth motion. With
+/// interpolate == false the value of the cell containing the particle is used, which is faster but makes particle paths visibly kink
+/// at cell boundaries.
+///
+/// The field values are accelerations; they are not divided by particle mass.
+///
+/// In the inline API field_data is read in place and must remain valid until ParticleLoop() returns. In the legacy API the field is
+/// copied, so the array may be freed after the call, including when building an action list.
+void VoxelField(PARG const pVec& grid_origin,   ///< minimum corner of the grid's bounding box
+                const pVec& grid_size,          ///< total extent of the grid in x, y and z (not the size of one cell). All components must be > 0.
+                const int dim_x,                ///< number of cells along x. Must be > 0.
+                const int dim_y,                ///< number of cells along y. Must be > 0.
+                const int dim_z,                ///< number of cells along z. Must be > 0.
+                const pVec* field_data,         ///< dim_x * dim_y * dim_z acceleration vectors, x varying fastest
+                const float magnitude = 1.0f,   ///< scales every field vector
+                const bool interpolate = true   ///< true for trilinear interpolation between cell centers; false for nearest cell
+);
+
+/// Apply a force field defined by a 3D grid of vectors.
+void VoxelField(PARG const pVec& grid_origin,
+                const pVec& grid_size,
+                const int* dims,
+                const pVec* field_data,
+                const float magnitude = 1.0f);
 
 //////////////////////////////////////////////////////////////////
 // Inter-particle actions
@@ -299,6 +386,79 @@ void MatchVelocity(PARG const float magnitude = 1.0f,  ///< scales each particle
 void MatchRotVelocity(PARG const float magnitude = 1.0f,  ///< scales each particle's acceleration
                       const float epsilon = P_EPS,        ///< added to distance to dampen acceleration
                       const float max_radius = P_MAXFLOAT ///< no particle further than max_radius from another particle is affected
+);
+
+/// Make particles bounce off each other as spheres.
+///
+/// Each particle is treated as a sphere whose radius is the X component of its size attribute, and whose mass is its mass attribute.
+/// For each pair of overlapping particles that are moving toward each other, a collision impulse is applied along the line between their
+/// centers, and a friction impulse opposes their sliding along the contact. Pairs that are already separating are left alone.
+/// Particles with mass <= 0 are treated as immovable.
+///
+/// This action only changes velocities. It does not push apart particles that already overlap, so particles that are created overlapping
+/// and at rest stay overlapping. Like Bounce(), it is best called as the last velocity-changing action before Move().
+///
+/// This action is O(N^2) in the number of particles in the group.
+///
+/// In the legacy API all impulses are computed from the velocities at the start of the action and then applied together, so the result
+/// does not depend on particle order. In the inline API each particle reads its neighbors' velocities while other particles are being
+/// updated, so results depend on processing order and are not deterministic with a parallel execution policy. Because only the particle
+/// being processed is updated, a pair can also miss half of its impulse, which does not conserve momentum and can add energy, most
+/// noticeably when particle masses differ. Use the legacy API when accuracy matters.
+void ResolveCollisions(PARG const float resilience = 1.0f, ///< fraction of the approach speed kept after the collision: 0 = no bounce, 1 = perfectly elastic
+                       const float friction = 0.0f         ///< Coulomb friction coefficient for sliding contact; 0 = frictionless
+);
+
+/// Use Smoothed Particle Hydrodynamics (SPH) to simulate fluid behavior.
+/// This implementation uses a uniform spatial grid for O(N) performance.
+/// Ensure UpdateSpatialGrid() is called before using this in a loop.
+void SPH(PARG const float target_density, const float pressure_multiplier, const float viscosity);
+
+/// Naive O(N^2) SPH implementation for comparison and benchmarking.
+void SPHNaive(PARG const float target_density, const float pressure_multiplier, const float viscosity);
+
+/// Rebuild the internal spatial grid for the current particle group.
+void UpdateSpatialGrid(PARG const float smoothing_length);
+
+//////////////////////////////////////////////////////////////////
+// Attribute mapping actions
+
+/// Set particle color from particle position.
+///
+/// Maps each component of the particle's position to the matching color component: x to red, y to green, z to blue. Positions at or below
+/// pos_min give color_min and positions at or above pos_max give color_max, with linear interpolation in between. A component for which
+/// pos_min equals pos_max always gets color_min.
+void PositionColor(PARG const pVec& pos_min,   ///< position mapped to color_min
+                   const pVec& pos_max,        ///< position mapped to color_max
+                   const pVec& color_min,      ///< color for positions at or below pos_min
+                   const pVec& color_max       ///< color for positions at or above pos_max
+);
+
+/// Randomly drift particle color.
+///
+/// For each particle, chooses a vector from the given domain and adds (vector * dt) to the particle's color. This is the color equivalent of
+/// RandomAccel(). Use a domain centered on the origin, such as PDSphere(pVec(0), r), to drift without a bias. The color is not clamped.
+void RandomColor(PARG const pDomain& dom ///< choose a color change per unit time from this domain
+);
+
+/// Set particle color from particle speed.
+///
+/// Particles with speed at or below min_speed get color_slow; particles at or above max_speed get color_fast. Colors in between are
+/// linearly interpolated. If min_speed >= max_speed, particles faster than min_speed get color_fast and others get color_slow.
+void VelocityColor(PARG const float min_speed, ///< speed mapped to color_slow
+                   const float max_speed,      ///< speed mapped to color_fast
+                   const pVec& color_slow,     ///< color for particles at or below min_speed
+                   const pVec& color_fast      ///< color for particles at or above max_speed
+);
+
+/// Set particle size from particle speed.
+///
+/// Works like VelocityColor() but sets the size attribute. For example, VelocitySize(0, 2, pVec(1), pVec(1, 1, 4)) stretches fast particles
+/// along their local Z axis, if the renderer interprets size that way.
+void VelocitySize(PARG const float min_speed, ///< speed mapped to size_slow
+                  const float max_speed,      ///< speed mapped to size_fast
+                  const pVec& size_slow,      ///< size for particles at or below min_speed
+                  const pVec& size_fast       ///< size for particles at or above max_speed
 );
 
 //////////////////////////////////////////////////////////////////

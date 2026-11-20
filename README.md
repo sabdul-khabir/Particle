@@ -11,6 +11,8 @@ April 18, 2022
 Hosted at https://github.com/davemc0/Particle.git.
 (Previously hosted for 15 years at: http://www.particlesystems.org.)
 
+New to the API? Start with the [Getting Started guide](./GettingStarted.md).
+
 Documentation is [here](./ParticleLib/doc/html/index.html).
 
 Change log is [here](./ChangeLog.html).
@@ -78,6 +80,20 @@ Example Code
 Example
 -------
 An OpenGL and GLUT-based example of particle systems used to render a fountain
+
+Showcase
+--------
+A guided tour of the whole API in 17 scenes. Together they use every action, every domain, and every way of
+creating particles, and each scene lists on screen exactly which actions, domains, and emission features it is showing.
+It is the best place to see what a feature does before reading its code: each scene's simulation is in one short
+`Update()` function in [Showcase/Showcase.cpp](Showcase/Showcase.cpp). Like Example, it needs only FreeGLUT and GLEW, not DMcTools.
+
+* Left/Right arrows (or N/P) change scenes; 1-9 jump to a scene; A starts an automatic tour.
+* Space does something specific to the scene (explode, refill, toggle an option); the bottom line says what.
+* C shows a table of every feature and the scenes that demonstrate it.
+* Drag to orbit the camera and use the wheel to zoom.
+* `Showcase --selftest` runs every scene without a window and checks that the particles behave sensibly.
+* `Showcase --shots <dir>` saves a screenshot of every scene.
 
 Playground
 ----------

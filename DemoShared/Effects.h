@@ -2,6 +2,7 @@
 #define Effects_h
 
 #include "Particle/pAPI.h"
+#include "LocalUtils.h"
 
 #include <memory>
 #include <string>
@@ -40,12 +41,12 @@ public:
     Effect(EffectsManager& Efx);
 
     void CreateList(ExecMode_e EM, EffectsManager& Efx);
-    const pDomain& Effect::Render(const pDomain& dom);
+    const pDomain& Render(const pDomain& dom);
 
     virtual const std::string GetName() const = 0;
     virtual void DoActions(EffectsManager& Efx) = 0;           // Call the actions the go in the action list and get executed per frame
     virtual void PerFrame(ExecMode_e EM, EffectsManager& Efx); // Set anything dynamic for current frame
-    virtual void StartEffect(EffectsManager& Efx) {}           // Initialize internal variables and set up anything else for the start of this effect
+    virtual void StartEffect(EffectsManager& /*Efx*/) {}           // Initialize internal variables and set up anything else for the start of this effect
     virtual int NextEffect(EffectsManager& Efx);               // Specify next demo to run in case only a particular one is interesting
 
     PrimType_e getPrimType() { return PrimType; }               // Which kind of primitive is best for this particle
@@ -260,10 +261,6 @@ struct Waterfall : public Effect {
 
 //////////////////////////////////////////////////////////////////////////////
 
-template <typename, int> class tPixel;
-typedef tPixel<unsigned char, 3> uc3Pixel;
-template <typename> class tImage;
-typedef tImage<uc3Pixel> uc3Image; // Super lame to have to forward declare a uc3Image this way.
 
 class EffectsManager {
 public:

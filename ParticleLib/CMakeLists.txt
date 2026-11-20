@@ -40,10 +40,18 @@ source_group("API" FILES ${API_SOURCES})
 
 add_library(Particle STATIC ${SOURCES})
 
+target_link_libraries(Particle PUBLIC TBB::tbb)
+
 # Push good flags out to library users
 # Warning level, all warnings as errors, optimization
-target_compile_options(Particle PUBLIC /W3 /WX /fp:fast /Ot /Oi /Oy /GL /Gy /GF /Qpar /arch:AVX512)
-target_link_options(Particle INTERFACE /LTCG)
+if(MSVC)
+    target_compile_options(Particle PUBLIC /W3 /WX /fp:fast /Ot /Oi /Oy /GL /Gy /GF /Qpar /arch:AVX2)
+    target_link_options(Particle INTERFACE /LTCG)
+else()
+    # Flags for GCC / Clang
+    target_compile_options(Particle PUBLIC -Wall -Wextra -ffast-math -O3 -flto -ffunction-sections -fdata-sections -mavx2)
+    target_link_options(Particle INTERFACE -flto)
+endif()
 
 target_include_directories(Particle
     PRIVATE "."

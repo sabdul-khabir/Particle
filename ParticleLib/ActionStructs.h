@@ -11,6 +11,7 @@
 #include "ParticleGroup.h"
 
 #include <string>
+#include <vector>
 
 namespace PAPI {
 
@@ -100,6 +101,10 @@ struct PACallActionList : public PActionBase {
 };
 
 struct PACommitKills : public PActionBase {
+    ACTION_DECLS;
+};
+
+struct PACommitSources : public PActionBase {
     ACTION_DECLS;
 };
 
@@ -320,6 +325,80 @@ struct PAVortex : public PActionBase {
     float inSpeed;
     float upSpeed;
     float aroundSpeed;
+
+    ACTION_DECLS;
+};
+
+struct PAVoxelField : public PActionBase {
+    pVec grid_origin;
+    pVec grid_size;
+    int dim_x, dim_y, dim_z;
+    std::vector<pVec> field_data; // Owned copy, so action lists don't depend on the application's array
+    float magnitude;
+    bool interpolate;
+
+    ACTION_DECLS;
+};
+
+struct PAWaypoints : public PActionBase {
+    std::vector<pVec> waypoints; // Owned copy, so action lists don't depend on the application's array
+    float magnitude;
+    float arrival_radius;
+    bool loop;
+    float epsilon;
+
+    ACTION_DECLS;
+};
+
+struct PADensityColor : public PActionBase {
+    float radius;
+    float min_neighbors;
+    float max_neighbors;
+    pVec color_sparse;
+    pVec color_dense;
+
+    ACTION_DECLS;
+};
+
+struct PAPositionColor : public PActionBase {
+    pVec pos_min, pos_max;
+    pVec color_min, color_max;
+
+    ACTION_DECLS;
+};
+
+struct PARandomColor : public PActionBase {
+    std::shared_ptr<pDomain> gen_color;
+
+    ACTION_DECLS;
+};
+
+struct PAResolveCollisions : public PActionBase {
+    float resilience;
+    float friction;
+
+    ACTION_DECLS;
+};
+
+struct PASPH : public PActionBase {
+    float smoothing_radius;
+    float target_density;
+    float pressure_multiplier;
+    float viscosity;
+
+    ACTION_DECLS;
+};
+
+struct PAVelocityColor : public PActionBase {
+    float min_speed, max_speed;
+    pVec color_slow, color_fast;
+
+    ACTION_DECLS;
+};
+
+struct PAVelocitySize : public PActionBase {
+    float min_speed, max_speed;
+    pVec size_slow, size_fast;
 
     ACTION_DECLS;
 };

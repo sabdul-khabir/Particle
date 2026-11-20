@@ -4,9 +4,7 @@
 
 using namespace PAPI;
 
-#include "Image/ImageAlgorithms.h"
-#include "Math/Random.h"
-
+#include <cmath>
 #include <execution>
 #include <iostream>
 #include <vector>
@@ -23,8 +21,13 @@ uc3Image* MakeFakeImage()
     uc3Image* Img = new uc3Image(SZ, SZ);
     for (int y = 0; y < SZ; y++) {
         for (int x = 0; x < SZ; x++) {
-            float rad = sqrtf((x - SZ / 2) * (x - SZ / 2) + (y - SZ / 2) * (y - SZ / 2));
-            (*Img).operator()(x, y) = (rad < MX && rad > MN) ? uc3Pixel(255, 255, 0) : uc3Pixel(128, 0, 200);
+           float fx = static_cast<float>(x) - static_cast<float>(SZ) / 2.0f;
+           float fy = static_cast<float>(y) - static_cast<float>(SZ) / 2.0f;
+           float rad = sqrtf(fx * fx + fy * fy);
+            (*Img).operator()(x, y) =
+               (rad < MX && rad > MN)
+               ? uc3Pixel(255, 255, 0)
+               : uc3Pixel(128, 0, 200);
         }
     }
     return Img;
@@ -36,12 +39,12 @@ inline void BounceBox(pVec& jet, pVec& djet, float timeStep, const float boxSize
     pVec djet2(djet);
 
     jet += djet * timeStep;
-    if (jet.x() > boxSize) djet2.x() = copySign(djet.x(), -1.f);
-    if (jet.y() > boxSize) djet2.y() = copySign(djet.y(), -1.f);
-    if (jet.z() > boxSize) djet2.z() = copySign(djet.z(), -1.f);
-    if (jet.x() < -boxSize) djet2.x() = copySign(djet.x(), 1.f);
-    if (jet.y() < -boxSize) djet2.y() = copySign(djet.y(), 1.f);
-    if (jet.z() < -boxSize) djet2.z() = copySign(djet.z(), 1.f);
+    if (jet.x() > boxSize) djet2.x() = std::copysign(djet.x(), -1.f);
+    if (jet.y() > boxSize) djet2.y() = std::copysign(djet.y(), -1.f);
+    if (jet.z() > boxSize) djet2.z() = std::copysign(djet.z(), -1.f);
+    if (jet.x() < -boxSize) djet2.x() = std::copysign(djet.x(), 1.f);
+    if (jet.y() < -boxSize) djet2.y() = std::copysign(djet.y(), 1.f);
+    if (jet.z() < -boxSize) djet2.z() = std::copysign(djet.z(), 1.f);
 
     if (!(djet == djet2)) djet2 += pRandf() * 0.005f - 0.0025f;
     djet = djet2;
@@ -547,7 +550,9 @@ void GridShape::StartEffect(EffectsManager& Efx)
             p.x() = -DD.x();
             for (int j = 0; j < dim; j++, p.x() += dd.x()) {
                 // Make the particle
-                S.Color(pVec(j, k, l) / (float)dim);
+               S.Color(pVec(static_cast<float>(j),
+                  static_cast<float>(k),
+                  static_cast<float>(l)) / static_cast<float>(dim));
                 S.StartingAge(0);
                 P.Vertex(p + Efx.center, S);
             }
@@ -614,7 +619,7 @@ void JetSpray::DoActions(EffectsManager& Efx)
     P.Move(PT true, false);
     PAEND
 
-    Render(PDSphere(jet, 1.5)), PDBlob(pVec(0, 0, 200.f), 40.f);
+    Render(PDSphere(jet, 1.5));
     Render(PDRectangle(pVec(-10, -10, 0.0), pVec(20, 0, 0), pVec(0, 20, 0)));
     Render(PDPlane(pVec(0, 0, -10), pVec(0, 0, 1)));
 }
@@ -699,7 +704,7 @@ void PhotoShape::StartEffect(EffectsManager& Efx)
     S.Velocity(PDBlob(pVec(0.f), 0.0001f));
     S.StartingAge(0);
     S.Size(particleSize);
-    int d = (int)sqrtf(numNewParticles);
+    int d = static_cast<int>(sqrtf(static_cast<float>(numNewParticles)));
 
     float sx = Efx.Img->w() / float(d);
     float sy = Efx.Img->h() / float(d);
@@ -802,7 +807,7 @@ void Shower::PerFrame(ExecMode_e EM, EffectsManager& Efx)
 
 void Shower::StartEffect(EffectsManager& Efx)
 {
-    particleRate = min(100.f, Efx.maxParticles / particleLifetime);
+    particleRate = std::min(100.f, Efx.maxParticles / particleLifetime);
     SteerShape = irand(STEER_CNT);
     jet = Efx.center;
     djet = pRandVec() * 0.02f;

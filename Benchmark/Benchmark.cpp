@@ -6,18 +6,14 @@
 
 #include "../DemoShared/Effects.h"
 #include "Particle/pAPI.h"
-
-// The following header files are part of DMcTools.
-#include "Math/Random.h"
-#include "Util/StatTimer.h"
-#include "Util/Timer.h"
+#include "LocalUtils.h"
 
 #include <iostream>
 #include <string>
 
 namespace {
 const int PRINT_PERIOD = 100, NUM_REPORTS = 5;
-ExecMode_e ExecMode = ActionList_Mode;
+ExecMode_e ExecMode = Inline_Mode;
 ParticleContext_t P;
 EffectsManager Efx(P, 500'000);
 StatTimer FPSClock(PRINT_PERIOD);
@@ -84,7 +80,7 @@ void RunBenchmark(int demoNum)
 
 // Test implementation of domains.
 // Generate a particle and ensure that it is within the domain.
-void TestOneDomain(pDomain& Dom)
+void TestOneDomain(const pDomain& Dom)
 {
     std::cerr << "TestOneDomain(" << typeid(Dom).name() << ")\n";
     const int Loops = 1000000;
