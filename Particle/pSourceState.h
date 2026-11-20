@@ -117,7 +117,9 @@ public:
     }
 
     /// Specify the secondary color domain of particles to be created.
-    /// Used for actions like ColorB effects or interpolation.
+    ///
+    /// Reserved for future use: this value is stored but not yet used. Particle_t has no secondary color attribute, so Source() and Vertex()
+    /// currently ignore it.
     PINLINE void ColorB(const pDomain& cdom)
     {
         ColorB_ = std::shared_ptr<pDomain>(cdom.copy());

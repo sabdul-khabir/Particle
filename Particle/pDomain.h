@@ -11,11 +11,10 @@
 #include "Particle/pError.h"
 #include "Particle/pVec.h"
 
-#include <memory>
 #include <cmath> // For M_PI, cosf, sinf, fabsf, sqrtf
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
 
 namespace PAPI {
 ///< How small the dot product must be to declare that a point is in a plane for Within().

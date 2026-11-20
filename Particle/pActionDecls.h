@@ -170,13 +170,6 @@ void Waypoints(PARG const pVec* waypoints,        ///< array of count waypoint p
                const float epsilon = P_EPS        ///< added to distance to dampen acceleration very near a waypoint
 );
 
-/// Accelerate particles toward the current waypoint.
-/// Once a particle is within a certain distance, it starts being attracted to the next waypoint in the list.
-void Waypoints(PARG const pVec* waypoints,   ///< array of waypoint positions
-               const int count,              ///< number of waypoints
-               const float magnitude = 1.0f, ///< acceleration magnitude
-               const float epsilon = P_EPS);
-
 /// Accelerate particles in random directions.
 ///
 /// For each particle, chooses an acceleration vector from the specified domain and adds it to the particle's velocity.
@@ -337,13 +330,6 @@ void VoxelField(PARG const pVec& grid_origin,   ///< minimum corner of the grid'
                 const float magnitude = 1.0f,   ///< scales every field vector
                 const bool interpolate = true   ///< true for trilinear interpolation between cell centers; false for nearest cell
 );
-
-/// Apply a force field defined by a 3D grid of vectors.
-void VoxelField(PARG const pVec& grid_origin,
-                const pVec& grid_size,
-                const int* dims,
-                const pVec* field_data,
-                const float magnitude = 1.0f);
 
 //////////////////////////////////////////////////////////////////
 // Inter-particle actions

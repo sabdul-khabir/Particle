@@ -149,7 +149,7 @@ void Update(float dt) {
 
 ---
 
-## 6. Available Actions Summary
+## 5. Available Actions Summary
 
 Below is a categorized list of actions available in the Particle System API.
 
@@ -188,7 +188,7 @@ Below is a categorized list of actions available in the Particle System API.
 
 ---
 
-## 7. Newer Actions
+## 6. Newer Actions
 
 These actions were added after version 3.0. See their full documentation in `pActionDecls.h` and `pAPIContext.h`.
 
@@ -218,7 +218,7 @@ P.ParticleLoop(std::execution::par_unseq, [&](Particle_t& p) {
 
 ---
 
-## 8. Available Domains Summary
+## 7. Available Domains Summary
 
 Domains represent spatial regions and are used for emission volumes, collision surfaces, and logic boundaries.
 
@@ -244,7 +244,7 @@ Domains represent spatial regions and are used for emission volumes, collision s
 
 ---
 
-## 9. Where to Go Next
+## 8. Where to Go Next
 
 1.  **Run `Showcase`:** 17 short scenes that together use every action, domain and emission feature, each listing on screen exactly what it shows. Press C in the program for a table of which scene shows each feature, then read that scene's `Update()` in `Showcase/Showcase.cpp`.
 2.  **Read `Example/Example.cpp`:** the smallest complete OpenGL program using the API.
