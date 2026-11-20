@@ -467,6 +467,7 @@ void PADensityColor::Execute(ParticleGroup& group, ParticleList::iterator ibegin
 {
     LIB_ASSERT(ibegin == group.begin() && iend == group.end(), "Can only be done on whole list");
     const size_t n = iend - ibegin;
+    if (n < 1) return;
     const Particle_t* beginp = &*ibegin;
     const Particle_t* endp = beginp + n;
     const float r2max = radius * radius;

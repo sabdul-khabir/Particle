@@ -31,3 +31,7 @@
 *.out
 *.app
 build
+
+# Visual Studio and its built-in CMake support
+.vs/
+out/

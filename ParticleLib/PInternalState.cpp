@@ -39,8 +39,10 @@ void StartParticleLoop(std::shared_ptr<PInternalState_t> PS, PInternalShadow_t& 
 
     ParticleGroup& pg = PS->getPGroups()[PS->get_pgroup_id()];
     PSh.dt = PS->get_dt();
-    PSh.ibegin = &*pg.begin();
-    PSh.iend = &*pg.begin() + (pg.end() - pg.begin());
+    // Use data() rather than &*pg.begin(): an empty group's begin() is its end(), which can't be dereferenced (Debug builds assert).
+    ParticleList& L = pg.GetList();
+    PSh.ibegin = L.data();
+    PSh.iend = L.data() + L.size();
     PSh.in_new_list = PS->get_in_new_list();
     PSh.in_particle_loop = true;
 }

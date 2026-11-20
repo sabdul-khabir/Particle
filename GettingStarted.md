@@ -99,7 +99,7 @@ void Update(float frameSeconds)
 Prefer inline actions (`P.Gravity(p, ...)` inside `ParticleLoop()`) over legacy actions (`P.Gravity(...)` called on its own). Legacy mode makes a full pass over every particle for *every* action; inline mode makes **one** pass for **all** actions, keeping each particle in the CPU cache. Legacy mode is still needed for action lists and for the few actions that are legacy-only (`SPH()`, `DensityColor()`).
 
 ### Parallelize via Execution Policies
-Pass `std::execution::par_unseq` to `ParticleLoop()` to spread the work across CPU cores and SIMD lanes. With GCC's standard library this requires linking against Intel TBB.
+Pass `std::execution::par_unseq` to `ParticleLoop()` to spread the work across CPU cores and SIMD lanes. GCC's standard library implements parallel policies with TBB, which the library already requires and links.
 
 Actions that read *other* particles (`Follow()`, `Gravitate()`, `MatchVelocity()`, `MatchRotVelocity()`, `ResolveCollisions()`) see their neighbors part-way through being updated in inline mode. With a parallel policy the results vary from run to run. Use a sequential loop, or the legacy version of the action, when you need repeatable results.
 

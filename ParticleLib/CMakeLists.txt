@@ -40,6 +40,11 @@ source_group("API" FILES ${API_SOURCES})
 
 add_library(Particle STATIC ${SOURCES})
 
+# TBB is part of the library's public interface: pInlineActionsAPI.h includes PInternalState.h, which uses tbb::concurrent_vector.
+# The top-level CMakeLists.txt normally finds it; this covers building ParticleLib on its own.
+if(NOT TARGET TBB::tbb)
+    find_package(TBB REQUIRED)
+endif()
 target_link_libraries(Particle PUBLIC TBB::tbb)
 
 # Push good flags out to library users
