@@ -170,32 +170,6 @@ void Waypoints(PARG const pVec* waypoints,        ///< array of count waypoint p
                const float epsilon = P_EPS        ///< added to distance to dampen acceleration very near a waypoint
 );
 
-/// Accelerate particles along a path of waypoints.
-///
-/// Each particle is accelerated toward its current waypoint with an acceleration of length magnitude (reduced slightly by epsilon when very
-/// close to the waypoint). Once the particle comes within arrival_radius of its current waypoint, it advances to the next one. After the last
-/// waypoint the particle either returns to the first (loop == true) or keeps steering toward the last one (loop == false).
-///
-/// IMPORTANT: The index of each particle's current waypoint is stored in the particle's user data attribute (Particle_t::data). That means:
-/// - Particles should be created with data == 0 (the default for pSourceState::Data() and Vertex()) to start at the first waypoint.
-///   Any out-of-range value also restarts the particle at the first waypoint.
-/// - Do not use this action on particles whose data attribute carries application data such as a pointer or handle;
-///   it will be overwritten, and birth/death callbacks will receive the waypoint index instead.
-///
-/// The acceleration is not damped, so particles tend to overshoot and circle a waypoint whose arrival_radius is small relative to
-/// their speed. Use an arrival_radius comparable to the distance a particle travels in a few time steps, or combine this action with
-/// Damping() or SpeedClamp().
-///
-/// In the inline API the waypoints array is read in place and must remain valid until ParticleLoop() returns. In the legacy API
-/// the waypoints are copied, so the array may be freed after the call, including when building an action list.
-void Waypoints(PARG const pVec* waypoints,        ///< array of count waypoint positions, in the order they are visited
-               const int count,                   ///< number of waypoints. If count <= 0 or waypoints is NULL the action does nothing.
-               const float magnitude = 1.0f,      ///< length of the acceleration vector toward the current waypoint
-               const float arrival_radius = 1.0f, ///< a particle closer than this to its current waypoint advances to the next waypoint
-               const bool loop = true,            ///< true to return to the first waypoint after the last; false to stay at the last waypoint
-               const float epsilon = P_EPS        ///< added to distance to dampen acceleration very near a waypoint
-);
-
 /// Accelerate particles toward the current waypoint.
 /// Once a particle is within a certain distance, it starts being attracted to the next waypoint in the list.
 void Waypoints(PARG const pVec* waypoints,   ///< array of waypoint positions
@@ -335,33 +309,6 @@ void Vortex(PARG const pVec& tip,          ///< tip of the vortex
             const float inSpeed,           ///< inward acceleration of particles OUTSIDE the vortex
             const float upSpeed,           ///< vertical acceleration of particles INSIDE the vortex. Can be negative to apply gravity.
             const float aroundSpeed        ///< acceleration around vortex of particles INSIDE the vortex.
-);
-
-/// Accelerate particles by a vector field sampled on a regular 3D grid.
-///
-/// The grid is an axis-aligned box from grid_origin to grid_origin + grid_size, divided into dim_x * dim_y * dim_z cells. Each cell holds one
-/// acceleration vector, defined at the center of the cell. For each particle inside the box, the field is sampled at the particle's position
-/// and (field_value * magnitude * dt) is added to the particle's velocity. Particles outside the box are not affected.
-///
-/// field_data is laid out with x varying fastest, then y, then z: the vector for cell (x, y, z) is
-/// field_data[(z * dim_y + y) * dim_x + x].
-///
-/// With interpolate == true the field is trilinearly interpolated between neighboring cell centers, which gives smooth motion. With
-/// interpolate == false the value of the cell containing the particle is used, which is faster but makes particle paths visibly kink
-/// at cell boundaries.
-///
-/// The field values are accelerations; they are not divided by particle mass.
-///
-/// In the inline API field_data is read in place and must remain valid until ParticleLoop() returns. In the legacy API the field is
-/// copied, so the array may be freed after the call, including when building an action list.
-void VoxelField(PARG const pVec& grid_origin,   ///< minimum corner of the grid's bounding box
-                const pVec& grid_size,          ///< total extent of the grid in x, y and z (not the size of one cell). All components must be > 0.
-                const int dim_x,                ///< number of cells along x. Must be > 0.
-                const int dim_y,                ///< number of cells along y. Must be > 0.
-                const int dim_z,                ///< number of cells along z. Must be > 0.
-                const pVec* field_data,         ///< dim_x * dim_y * dim_z acceleration vectors, x varying fastest
-                const float magnitude = 1.0f,   ///< scales every field vector
-                const bool interpolate = true   ///< true for trilinear interpolation between cell centers; false for nearest cell
 );
 
 /// Accelerate particles by a vector field sampled on a regular 3D grid.
