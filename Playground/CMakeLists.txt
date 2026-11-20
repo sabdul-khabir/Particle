@@ -27,9 +27,6 @@ add_definitions(-DFREEGLUT_STATIC)
 include_directories(${GLUT_INCLUDE_DIR})
 link_libraries(${GLUT_LIBRARIES})
 
-# TBB is required by the C++17 Parallel STL used in Effects.cpp
-find_package(TBB REQUIRED)
-
 set(SOURCES
     ../DemoShared/DrawGroups.cpp
     ../DemoShared/DrawGroups.h
@@ -45,8 +42,12 @@ source_group("src"  FILES ${SOURCES})
 add_executable(${EXE_NAME} ${SOURCES})
 
 set_target_properties(${EXE_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY ${PROJECT_ROOT_DIR} )
-set_target_properties(${EXE_NAME} PROPERTIES CMAKE_CXX_STANDARD 17 )
+set_target_properties(${EXE_NAME} PROPERTIES CXX_STANDARD 17 )
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${EXE_NAME})
 
-target_include_directories(${EXE_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../DMcTools/deps/stb")
-target_link_libraries(${EXE_NAME} PRIVATE Particle opengl32 glu32 TBB::tbb)
+target_include_directories(${EXE_NAME} PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../DemoShared"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/stb"
+)
+target_link_libraries(${EXE_NAME} PRIVATE Particle opengl32 glu32)

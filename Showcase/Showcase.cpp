@@ -2101,7 +2101,8 @@ void SaveBMP(const std::string& path)
     auto put32 = [&](int at, unsigned int v) { memcpy(hdr + at, &v, 4); };
     put32(2, fileSize), put32(10, 54), put32(14, 40), put32(18, w), put32(22, h);
     hdr[26] = 1, hdr[28] = 24;
-    FILE* f = fopen(path.c_str(), "wb");
+    FILE* f = nullptr;
+    fopen_s(&f, path.c_str(), "wb");
     if (!f) return;
     fwrite(hdr, 1, 54, f);
     fwrite(px.data(), 1, px.size(), f);

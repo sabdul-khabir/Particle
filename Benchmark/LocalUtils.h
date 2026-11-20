@@ -8,7 +8,7 @@
 #include <cassert>
 #include <iostream>
 
-#define PASSERT(cond, msg) assert((cond) && msg)
+#define BENCH_ASSERT(cond, msg) assert((cond) && msg)
 
 inline void SRand() { srand((unsigned int)time(nullptr)); }
 inline float frand() { return (float)rand() / (float)RAND_MAX; }

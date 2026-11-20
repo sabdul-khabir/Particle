@@ -21,8 +21,13 @@ uc3Image* MakeFakeImage()
     uc3Image* Img = new uc3Image(SZ, SZ);
     for (int y = 0; y < SZ; y++) {
         for (int x = 0; x < SZ; x++) {
-            float rad = sqrtf((x - SZ / 2) * (x - SZ / 2) + (y - SZ / 2) * (y - SZ / 2));
-            (*Img).operator()(x, y) = (rad < MX && rad > MN) ? uc3Pixel(255, 255, 0) : uc3Pixel(128, 0, 200);
+           float fx = static_cast<float>(x) - static_cast<float>(SZ) / 2.0f;
+           float fy = static_cast<float>(y) - static_cast<float>(SZ) / 2.0f;
+           float rad = sqrtf(fx * fx + fy * fy);
+            (*Img).operator()(x, y) =
+               (rad < MX && rad > MN)
+               ? uc3Pixel(255, 255, 0)
+               : uc3Pixel(128, 0, 200);
         }
     }
     return Img;
@@ -545,7 +550,9 @@ void GridShape::StartEffect(EffectsManager& Efx)
             p.x() = -DD.x();
             for (int j = 0; j < dim; j++, p.x() += dd.x()) {
                 // Make the particle
-                S.Color(pVec(j, k, l) / (float)dim);
+               S.Color(pVec(static_cast<float>(j),
+                  static_cast<float>(k),
+                  static_cast<float>(l)) / static_cast<float>(dim));
                 S.StartingAge(0);
                 P.Vertex(p + Efx.center, S);
             }
@@ -697,7 +704,7 @@ void PhotoShape::StartEffect(EffectsManager& Efx)
     S.Velocity(PDBlob(pVec(0.f), 0.0001f));
     S.StartingAge(0);
     S.Size(particleSize);
-    int d = (int)sqrtf(numNewParticles);
+    int d = static_cast<int>(sqrtf(static_cast<float>(numNewParticles)));
 
     float sx = Efx.Img->w() / float(d);
     float sy = Efx.Img->h() / float(d);

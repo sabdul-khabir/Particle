@@ -9,6 +9,8 @@ project(${EXE_NAME})
 set(CMAKE_CXX_STANDARD 17)
 
 set(PROJECT_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+
+find_package(TBB REQUIRED)
 if(MSVC)
     # build in parallel (MSVC-specific)
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/MP>)
@@ -22,7 +24,6 @@ else()
     set(CMAKE_DEBUG_POSTFIX "")
 endif()
 
-add_subdirectory(${PROJECT_ROOT_DIR}/DMcTools ${CMAKE_CURRENT_BINARY_DIR}/DMcTools)
 
 add_subdirectory(${PROJECT_ROOT_DIR}/ParticleLib ${CMAKE_CURRENT_BINARY_DIR}/ParticleLib)
 

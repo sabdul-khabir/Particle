@@ -239,7 +239,10 @@ void MakeGaussianSpotTexture()
             if (x < B || x >= DIM - B || y < B || y >= DIM - B)
                 img[y * DIM + x] = 0;
             else {
-                img[y * DIM + x] = TEX_SCALE * Gaussian2(x - DIM2, y - DIM2, (DIM * 0.15));
+               img[y * DIM + x] =
+                  TEX_SCALE * Gaussian2(static_cast<float>(x - DIM2),
+                     static_cast<float>(y - DIM2),
+                     DIM * 0.15f);
             }
         }
     }
@@ -269,7 +272,12 @@ void MakeSphereTexture()
 
     for (int y = 0; y < DIM; y++) {
         for (int x = 0; x < DIM; x++) {
-            pVec p = pVec(x, y, 0) - pVec(CTR, CTR, 0);
+           pVec p = pVec(static_cast<float>(x),
+              static_cast<float>(y),
+              0.0f)
+              - pVec(static_cast<float>(CTR),
+                 static_cast<float>(CTR),
+                 0.0f);
             float len = p.length();
             float z = sqrt(RAD * RAD - len * len);
             p.z() = z;
@@ -511,7 +519,7 @@ void Draw()
         int cnt = (int)P.GetGroupCount();
         char exCh = (ExecMode == Immediate_Mode) ? 'I' : (ExecMode == ActionList_Mode) ? 'N' : 'C';
 
-        sprintf(msg, " %c%c%c%c%c%c%c%c n=%6d iters=%d fps=%02.2f %s %s t=%1.2f", exCh, MotionBlur ? 'M' : ' ', FreezeParticles ? 'F' : ' ',
+        sprintf_s(msg, " %c%c%c%c%c%c%c%c n=%6d iters=%d fps=%02.2f %s %s t=%1.2f", exCh, MotionBlur ? 'M' : ' ', FreezeParticles ? 'F' : ' ',
                 UseEffectSettings ? 'A' : ' ', RandomDemo ? 'R' : ' ', DepthTest ? 'D' : ' ', camCtrl.CameraMotion ? 'C' : ' ', SortParticles ? 'S' : ' ', cnt,
                 Efx.simStepsPerFrame, fps, PrimTypeNames[PrimType], Efx.GetCurEffectName().c_str(), RandomDemoClock.Read());
 

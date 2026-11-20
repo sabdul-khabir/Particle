@@ -240,15 +240,6 @@ PINLINE void PContextActions_t::SPH(Particle_t& m, const float target_density, c
     PASPH_Impl(m, PSh.get_dt(), target_density, pressure_multiplier, viscosity, PSh.get_const_pgroup_begin(), PSh.get_const_pgroup_end());
 }
 
-//////////////////////////////////////////////////////////////////
-// Attribute Mapping Actions
-
-PINLINE void PContextActions_t::DensityColor(Particle_t& m, const pDomain& dom)
-{ 
-    P_CHECK_ERR; 
-    PADensityColor_Impl(m, PSh.get_dt(), dom); 
-}
-
 PINLINE void PContextActions_t::PositionColor(Particle_t& m, const pVec& pos_min, const pVec& pos_max, const pVec& color_min, const pVec& color_max)
 {
     P_CHECK_ERR;

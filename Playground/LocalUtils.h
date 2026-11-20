@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <cassert>
 
-#define PASSERT(cond, msg) assert((cond) && msg)
+//#define PASSERT(cond, msg) assert((cond) && msg)
 
 #define GL_ASSERT() \
     { \

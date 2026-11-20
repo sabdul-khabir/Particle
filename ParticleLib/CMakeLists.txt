@@ -40,6 +40,8 @@ source_group("API" FILES ${API_SOURCES})
 
 add_library(Particle STATIC ${SOURCES})
 
+target_link_libraries(Particle PUBLIC TBB::tbb)
+
 # Push good flags out to library users
 # Warning level, all warnings as errors, optimization
 if(MSVC)

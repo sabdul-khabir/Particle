@@ -273,19 +273,13 @@ Showcase_IS_TOP_LEVEL:STATIC=OFF
 Showcase_SOURCE_DIR:STATIC=E:/SulaimanGitHub/Particle/Showcase
 
 //The directory containing a CMake configuration file for TBB.
-TBB_DIR:PATH=E:/oneapi-tbb-2023.2.0/lib/cmake/tbb
-
-//Path to a file.
-_tbb_debug_dll:FILEPATH=E:/oneapi-tbb-2023.2.0/redist/intel64/vc14/tbbmalloc_proxy_debug.dll
+TBB_DIR:PATH=C:/Program Files (x86)/Intel/oneAPI/tbb/2023.2/lib/cmake/tbb
 
 //Path to a library.
-_tbb_debug_lib:FILEPATH=E:/oneapi-tbb-2023.2.0/lib/intel64/vc14/tbbmalloc_proxy_debug.lib
-
-//Path to a file.
-_tbb_release_dll:FILEPATH=E:/oneapi-tbb-2023.2.0/redist/intel64/vc14/tbbmalloc_proxy.dll
+_tbb_debug_lib:FILEPATH=C:/Program Files (x86)/Intel/oneAPI/tbb/2023.2/lib/tbbmalloc_proxy_debug.lib
 
 //Path to a library.
-_tbb_release_lib:FILEPATH=E:/oneapi-tbb-2023.2.0/lib/intel64/vc14/tbbmalloc_proxy.lib
+_tbb_release_lib:FILEPATH=C:/Program Files (x86)/Intel/oneAPI/tbb/2023.2/lib/tbbmalloc_proxy.lib
 
 
 ########################
