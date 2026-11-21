@@ -389,6 +389,12 @@ struct PASPH : public PActionBase {
     ACTION_DECLS;
 };
 
+struct PAUpdateSpatialGrid : public PActionBase {
+    float smoothing_radius;
+
+    ACTION_DECLS;
+};
+
 struct PAVelocityColor : public PActionBase {
     float min_speed, max_speed;
     pVec color_slow, color_fast;

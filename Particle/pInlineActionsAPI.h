@@ -234,10 +234,20 @@ PINLINE void PContextActions_t::ResolveCollisions(Particle_t& m, const float res
     m.vel += PAResolveCollisionsDV_Impl(m, resilience, friction, PSh.get_const_pgroup_begin(), PSh.get_const_pgroup_end());
 }
 
-PINLINE void PContextActions_t::SPH(Particle_t& m, const float target_density, const float pressure_multiplier, const float viscosity)
+PINLINE void PContextActions_t::SPH(Particle_t& m, const float smoothing_radius, const float target_density, const float pressure_multiplier,
+                                     const float viscosity)
 {
     P_CHECK_ERR;
-    PASPH_Impl(m, PSh.get_dt(), target_density, pressure_multiplier, viscosity, PSh.get_const_pgroup_begin(), PSh.get_const_pgroup_end());
+    // The densities of all particles come from UpdateSpatialGrid(), called before this ParticleLoop()
+    const PSpatialGrid_t* grid = PSh.get_sph_grid();
+#ifdef _DEBUG
+    PASSERT(grid, "Inline SPH() needs UpdateSpatialGrid() on this particle group right before each ParticleLoop() that calls SPH()");
+    PASSERT(grid->h == smoothing_radius, "Inline SPH() must use the smoothing_radius that was passed to UpdateSpatialGrid()");
+#endif
+    if (!grid) return;
+
+    const Particle_t* ibegin = PSh.get_const_pgroup_begin();
+    m.vel += PASPHAccel_Impl(m, size_t(&m - ibegin), target_density, pressure_multiplier, viscosity, ibegin, *grid) * PSh.get_dt();
 }
 
 PINLINE void PContextActions_t::PositionColor(Particle_t& m, const pVec& pos_min, const pVec& pos_max, const pVec& color_min, const pVec& color_max)

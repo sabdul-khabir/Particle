@@ -656,7 +656,21 @@ void PContextActions_t::SPH(const float smoothing_radius, const float target_den
     A->viscosity = viscosity;
 
     A->SetKillsParticles(false);
-    A->SetDoNotSegment(true); // N^2
+    A->SetDoNotSegment(true); // Needs the whole group
+
+    PS->SendAction(std::shared_ptr<PActionBase>(A));
+}
+
+void PContextActions_t::UpdateSpatialGrid(const float smoothing_radius)
+{
+    P_CHECK_ERR;
+    if (!(smoothing_radius > 0.f)) throw PErrInvalidValue("UpdateSpatialGrid: smoothing_radius must be > 0.");
+    PAUpdateSpatialGrid* A = new PAUpdateSpatialGrid;
+
+    A->smoothing_radius = smoothing_radius;
+
+    A->SetKillsParticles(false);
+    A->SetDoNotSegment(true); // Needs the whole group
 
     PS->SendAction(std::shared_ptr<PActionBase>(A));
 }

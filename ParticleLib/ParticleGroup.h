@@ -11,6 +11,7 @@
 
 #include "LibHelpers.h"
 #include "Particle/pParticle.h"
+#include "Particle/pSpatialGrid.h"
 
 #include <algorithm>
 #include <vector>
@@ -37,6 +38,8 @@ private:
     pdata_t group_death_data;     // Pass this to the death callback
 
 public:
+    PSpatialGrid_t sph_grid; // Built by UpdateSpatialGrid() for the inline SPH() calls in the next ParticleLoop(). Not copied with the group.
+
     ParticleGroup()
     {
         max_particles = 0;
@@ -80,6 +83,7 @@ public:
                 for (it = list.begin(); it != list.end(); ++it) (*cb_death)((*it), group_death_data);
             }
             list = rhs.list;
+            sph_grid.Clear(); // It described the old particles
             cb_birth = rhs.cb_birth;
             cb_death = rhs.cb_death;
             group_birth_data = rhs.group_birth_data;

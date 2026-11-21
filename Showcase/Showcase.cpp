@@ -56,7 +56,8 @@ const std::vector<std::string> AllFeatures[CAT_COUNT] = {
     // Emission, source state, and other API
     {"Source", "Vertex", "Vertex(data)", "S.Velocity", "S.Color", "S.Color(+alpha)", "S.Size", "S.Mass", "S.StartingAge", "S.UpVec", "S.RotVelocity",
      "S.VertexB", "S.VertexBTracks", "S.Data", "Action lists", "CopyGroup", "CurrentGroup", "SetMaxParticles", "BirthCallback", "DeathCallback",
-     "TimeStep substeps", "Seed", "GetParticlePointer", "GetParticles", "ParticleLoop(par_unseq)", "ParticleLoop(seq)", "Legacy actions"},
+     "TimeStep substeps", "Seed", "GetParticlePointer", "GetParticles", "ParticleLoop(par_unseq)", "ParticleLoop(seq)", "Legacy actions",
+     "UpdateSpatialGrid"},
 };
 
 //////////////////////////////////////////////////////////////////
@@ -1506,77 +1507,119 @@ struct CollideScene : Scene {
 };
 
 //////////////////////////////////////////////////////////////////
-// 15. SPH fluid with the legacy API and an action list
+// 15. SPH fluid, side by side: inline actions with UpdateSpatialGrid(), and legacy actions in an action list
 
 struct SPHScene : Scene {
-    const pVec Lo = V(0, 0, 0), Hi = V(5, 1.6f, 4);
-    PDBox Tank = PDBox(V(0, 0, 0), V(5, 1.6f, 4));
-    int g = -1, list = -1;
+    // The left tank runs inline actions; the right tank runs the same actions with the legacy API
+    const pVec LoA = V(0, 0, 0), HiA = V(5, 1.6f, 4);
+    const pVec LoB = V(6, 0, 0), HiB = V(11, 1.6f, 4);
+    const PDBox TankA = PDBox(LoA, HiA), TankB = PDBox(LoB, HiB);
+    const pVec Down = V(0, 0, -9.8f);
+    int gInline = -1, gLegacy = -1, list = -1;
     static constexpr int Substeps = 4;
+
+    // A lattice with 0.2 spacing has density about 126 with this radius and mass 1. A slightly lower
+    // target lets the column relax a little before gravity takes over.
+    static constexpr float Radius = 0.4f, TargetDensity = 110.f, Stiffness = 20.f, Viscosity = 1.f;
 
     SPHScene()
     {
-        title = "SPH - a dam break, using an action list";
-        summary = "SPH() and DensityColor() are legacy-only (they need every particle's density first). The fluid's actions are recorded once into an action list, which is called 4 times per frame with dt/4. DensityColor() then runs once per frame.";
+        title = "SPH - a dam break, inline and legacy";
+        summary = "The same fluid twice. Left: inline SPH() in a ParticleLoop, after UpdateSpatialGrid() computes every particle's density. Right: "
+                  "legacy SPH() recorded into an action list. Both run 4 steps of dt/4 per frame. Legacy-only DensityColor() colors both.";
         Uses(CAT_ACTION, {"SPH", "DensityColor", "Gravity", "Bounce", "Move"});
         Uses(CAT_DOMAIN, {"PDBox"});
-        Uses(CAT_API, {"Vertex", "Action lists", "TimeStep substeps", "Legacy actions"});
-        camera.target = V(2.5f, 0.8f, 1.5f);
+        Uses(CAT_API, {"Vertex", "UpdateSpatialGrid", "ParticleLoop(par_unseq)", "Action lists", "TimeStep substeps", "Legacy actions"});
+        camera.target = V(5.5f, 0.8f, 1.5f);
         camera.pitch = 15.f;
-        camera.dist = 11.f;
+        camera.dist = 17.f;
     }
 
     void Start() override
     {
-        g = NewGroup(1000);
+        gInline = NewGroup(1000);
+        gLegacy = NewGroup(1000);
         Fill();
 
-        // Record the per-step actions once. Domains and parameters are copied into the list.
+        // Record the legacy tank's per-step actions once. Domains and parameters are copied into the list.
         list = P.GenActionLists(1);
         actionLists.push_back(list);
         P.NewActionList(list);
-        // A lattice with 0.2 spacing has density about 126 with this radius and mass 1. A slightly lower
-        // target lets the column relax a little before gravity takes over.
-        P.SPH(0.4f, 110.f, 20.f, 1.f);
-        P.Gravity(V(0, 0, -9.8f));
-        P.Bounce(0.02f, 0.2f, 0.f, Tank);
+        P.SPH(Radius, TargetDensity, Stiffness, Viscosity);
+        P.Gravity(Down);
+        P.Bounce(0.02f, 0.2f, 0.f, TankB);
         P.Move(true, false);
         P.EndActionList();
     }
 
+    // A column of water at the left end of each tank
     void Fill()
     {
-        P.CurrentGroup(g);
-        P.SetMaxParticles(0); // Empty the group...
-        P.SetMaxParticles(1000);
         pSourceState S;
         S.Color(V(0.3f, 0.5f, 1.f));
         S.Size(V(0.09f)); // Drawn as balls of this radius
-        for (float z = 0.1f; z < 2.8f; z += 0.2f)
-            for (float y = 0.1f; y < 1.5f; y += 0.2f)
-                for (float x = 0.1f; x < 1.5f; x += 0.2f) P.Vertex(V(x, y, z), S);
+        for (int g : {gInline, gLegacy}) {
+            P.CurrentGroup(g);
+            P.SetMaxParticles(0); // Empty the group...
+            P.SetMaxParticles(1000);
+            const pVec Lo = g == gInline ? LoA : LoB;
+            for (float z = 0.1f; z < 2.8f; z += 0.2f)
+                for (float y = 0.1f; y < 1.5f; y += 0.2f)
+                    for (float x = 0.1f; x < 1.5f; x += 0.2f) P.Vertex(Lo + V(x, y, z), S);
+        }
     }
 
     void Trigger() override { Fill(); }
-    std::string TriggerHelp() const override { return "Space: refill the dam"; }
+    std::string TriggerHelp() const override { return "Space: refill both dams"; }
 
     void Update(float dt) override
     {
-        P.CurrentGroup(g);
         P.TimeStep(dt / Substeps); // Smaller steps keep the stiff fluid stable
+
+        // Inline: SPH() needs every particle's density before it can compute any force, so UpdateSpatialGrid() computes them all first
+        P.CurrentGroup(gInline);
+        for (int i = 0; i < Substeps; ++i) {
+            P.UpdateSpatialGrid(Radius);
+            P.ParticleLoop(std::execution::par_unseq, [&](Particle_t& p) {
+                P.SPH(p, Radius, TargetDensity, Stiffness, Viscosity);
+                P.Gravity(p, Down);
+                P.Bounce(p, 0.02f, 0.2f, 0.f, TankA);
+                P.Move(p, true, false);
+            });
+        }
+
+        // Legacy: the same actions, from the action list
+        P.CurrentGroup(gLegacy);
         for (int i = 0; i < Substeps; ++i) P.CallActionList(list);
+
         P.TimeStep(dt);
-        P.DensityColor(0.35f, 4.f, 18.f, V(0.65f, 0.9f, 1.f), V(0.05f, 0.2f, 0.75f)); // Legacy action, outside the list
+        for (int g : {gInline, gLegacy}) {
+            P.CurrentGroup(g);
+            P.DensityColor(0.35f, 4.f, 18.f, V(0.65f, 0.9f, 1.f), V(0.05f, 0.2f, 0.75f)); // Legacy-only action, once per frame
+        }
+    }
+
+    std::vector<std::string> Status() override
+    {
+        P.CurrentGroup(gInline);
+        const size_t nA = P.GetGroupCount();
+        P.CurrentGroup(gLegacy);
+        const size_t nB = P.GetGroupCount();
+        return {"Left: inline SPH(), " + std::to_string(nA) + " particles.  Right: legacy SPH(), " + std::to_string(nB) + " particles."};
     }
 
     void Draw() override
     {
         GuideColor(0.5f);
-        GBox(Lo, Hi);
-        Label3D(Hi + V(0.2f, 0, 0), "PDBox tank", 1.f, 0.9f, 0.45f);
-        Label3D(Lo + V(0, 0, -0.4f), "color: DensityColor (dark = crowded)", 0.8f, 0.8f, 0.8f);
-        P.CurrentGroup(g);
-        DrawBalls();
+        GBox(LoA, HiA);
+        GBox(LoB, HiB);
+        Label3D(V(LoA.x(), LoA.y(), HiA.z() + 0.3f), "inline: UpdateSpatialGrid() + SPH(p, ...)", 1.f, 0.9f, 0.45f);
+        Label3D(V(LoB.x(), LoB.y(), HiB.z() + 0.3f), "legacy: SPH() in an action list", 1.f, 0.9f, 0.45f);
+        Label3D(LoA + V(0, 0, -0.4f), "PDBox tanks.  color: DensityColor (dark = crowded)", 0.8f, 0.8f, 0.8f);
+        for (int g : {gInline, gLegacy}) {
+            P.CurrentGroup(g);
+            DrawBalls();
+        }
     }
 };
 

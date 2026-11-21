@@ -27,6 +27,7 @@ set(API_SOURCES
     ../Particle/pInternalShadow.h
     ../Particle/pParticle.h
     ../Particle/pSourceState.h
+    ../Particle/pSpatialGrid.h
     ../Particle/pVec.h
 )
 

@@ -43,12 +43,18 @@ void StartParticleLoop(std::shared_ptr<PInternalState_t> PS, PInternalShadow_t& 
     ParticleList& L = pg.GetList();
     PSh.ibegin = L.data();
     PSh.iend = L.data() + L.size();
+    // Inline SPH() can use the group's grid only if UpdateSpatialGrid() built it since the last loop, for the same particles
+    PSh.sph_grid = (pg.sph_grid.ready && pg.sph_grid.count == L.size()) ? &pg.sph_grid : nullptr;
     PSh.in_new_list = PS->get_in_new_list();
     PSh.in_particle_loop = true;
 }
 
 void EndParticleLoop(std::shared_ptr<PInternalState_t> PS, PInternalShadow_t& PSh)
 {
+    // The particles have moved, so the densities are out of date. Inline SPH() in another loop needs a new UpdateSpatialGrid().
+    if (PSh.sph_grid) PS->getPGroups()[PS->get_pgroup_id()].sph_grid.ready = false;
+    PSh.sph_grid = nullptr;
+
     PS->set_in_particle_loop(false);
     PSh.in_particle_loop = false;
     PSh.in_new_list = PS->get_in_new_list();

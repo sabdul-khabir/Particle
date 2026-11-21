@@ -14,6 +14,7 @@
 
 namespace PAPI {
 struct Particle_t;
+struct PSpatialGrid_t;
 
 // Shadow copy of some information from PInternalState_t that is used by the inline actions API
 // It is owned by pContextActions_t.
@@ -27,10 +28,12 @@ public:
     Particle_t* get_pgroup_end() { return iend; }                 // Iterator to end of current particle group
     bool get_in_new_list() const { return in_new_list; }
     bool get_in_particle_loop() const { return in_particle_loop; }
+    const PSpatialGrid_t* get_sph_grid() const { return sph_grid; } // The current group's grid for inline SPH(), or null if not ready
 
     float dt;
     Particle_t* ibegin;
     Particle_t* iend;
+    const PSpatialGrid_t* sph_grid = nullptr;
 
     bool in_new_list;
     bool in_particle_loop;

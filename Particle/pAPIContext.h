@@ -134,14 +134,6 @@ public:
 protected:
     std::shared_ptr<PInternalState_t> PS;                     // The internal API data for this context is stored here.
     void InternalSetup(std::shared_ptr<PInternalState_t> Sr); // Calls this after construction to set up the PS pointer
-
-    // Internal storage for the uniform spatial grid used by O(N) SPH and collisions.
-    struct PSpatialGrid_t {
-        std::vector<int> heads, next;
-        pVec min_pos;
-        int dims[3];
-        float h, inv_h;
-    } m_Grid;
 };
 
 /// This class contains the API calls that operate on particle groups.
@@ -243,6 +235,24 @@ public:
     ///
     /// Writing to the returned memory is obviously unsafe. There may be auxiliary data that depend on the current values of the particle data.
     /// You can try it if you want to, but your code may break against future API versions.
+    size_t GetParticlePointer(const float*& ptr, ///< the returned pointer to the particle data
+                              size_t& stride,    ///< the number of floats from one particle's value to the next particle's value
+                              size_t& pos3Ofs,   ///< the number of floats from returned ptr to the first particle's position parameter
+                              size_t& posB3Ofs,  ///< the number of floats from returned ptr to the first particle's positionB parameter
+                              size_t& size3Ofs,  ///< the number of floats from returned ptr to the first particle's size parameter
+                              size_t& vel3Ofs,   ///< the number of floats from returned ptr to the first particle's velocity parameter
+                              size_t& velB3Ofs,  ///< the number of floats from returned ptr to the first particle's velocityB parameter
+                              size_t& color3Ofs, ///< the number of floats from returned ptr to the first particle's color parameter
+                              size_t& alpha1Ofs, ///< the number of floats from returned ptr to the first particle's alpha parameter
+                              size_t& age1Ofs,   ///< the number of floats from returned ptr to the first particle's age parameter
+                              size_t& up3Ofs,    ///< the number of floats from returned ptr to the first particle's up parameter
+                              size_t& rvel3Ofs,  ///< the number of floats from returned ptr to the first particle's rvel parameter
+                              size_t& upB3Ofs,   ///< the number of floats from returned ptr to the first particle's upB parameter
+                              size_t& mass1Ofs,  ///< the number of floats from returned ptr to the first particle's mass parameter
+                              size_t& data1Ofs   ///< the number of floats from returned ptr to the first particle's data parameter, which is a 32-bit integer
+    );
+
+    /// Return pointers to particle data in SoA (Structure of Arrays) format.
     ///
     /// Note: As of version 3.1, this returns pointers in SoA (Structure of Arrays) format.
     size_t GetParticlePointers(float*& posPtr,
@@ -255,10 +265,6 @@ public:
                                float*& rvelPtr,
                                float*& massPtr,
                                uint32_t*& dataPtr);
-
-    size_t GetParticlePointer(const float*& ptr, size_t& stride, size_t& pos3Ofs, size_t& posB3Ofs, size_t& size3Ofs, size_t& vel3Ofs,
-                                                   size_t& velB3Ofs, size_t& color3Ofs, size_t& alpha1Ofs, size_t& age1Ofs, size_t& up3Ofs, size_t& rvel3Ofs,
-                                                   size_t& upB3Ofs, size_t& mass1Ofs, size_t& data1Ofs);
 
     /// Change the maximum number of particles in the current group.
     ///
@@ -372,23 +378,23 @@ public:
               const bool clamp_negative = false ///< true to set negative dot product values to zero before sorting
     );
 
-    /// Simulate the particles as a fluid using Smoothed Particle Hydrodynamics (SPH).
+    /// Prepare the current particle group for inline SPH().
     ///
-    /// Each particle's density is estimated from the masses of the particles within smoothing_radius of it. Particles in regions denser than
-    /// target_density push each other apart with a force proportional to pressure_multiplier * (density - target_density). Regions less
-    /// dense than target_density exert no pressure, which avoids particles clumping. A viscosity term pulls each particle's velocity toward
-    /// its neighbors' velocities. The resulting accelerations are added to the particle velocities; call Move() afterward.
+    /// Sorts the group's particles into a spatial grid whose cells are smoothing_radius wide, and computes every particle's SPH density
+    /// from the current positions. Inline SPH() needs every particle's density before it can compute any particle's force, so call this
+    /// right before each ParticleLoop() that calls SPH(), with the same smoothing_radius:
+    /// \code
+    /// P.UpdateSpatialGrid(0.4f);
+    /// P.ParticleLoop(std::execution::par_unseq, [&](Particle_t& p) {
+    ///     P.SPH(p, 0.4f, 110.f, 20.f, 1.f);
+    ///     P.Gravity(p, pVec(0, 0, -9.8f));
+    ///     P.Move(p);
+    /// });
+    /// \endcode
     ///
-    /// The density scale depends on smoothing_radius and particle mass. A particle alone has density of roughly
-    /// mass * 1.57 / smoothing_radius^3, so a target_density several times that keeps a few neighbors within reach of each particle.
-    /// SPH is stiff: if particles explode apart, reduce dt or pressure_multiplier, or add viscosity.
-    ///
-    /// This action is only available in the legacy (non-inline) API because it needs every particle's density before it can compute any
-    /// particle's forces. It is O(N^2) in the number of particles in the group.
-    void SPH(const float smoothing_radius,    ///< particles further apart than this do not interact. Must be > 0.
-             const float target_density,      ///< rest density of the fluid
-             const float pressure_multiplier, ///< stiffness: how strongly density above target_density pushes particles apart
-             const float viscosity            ///< how strongly neighboring particles' velocities are averaged; 0 for none
+    /// The grid serves only the next ParticleLoop(), and only if the number of particles in the group hasn't changed since this call.
+    /// The legacy SPH() action makes its own grid and doesn't need this.
+    void UpdateSpatialGrid(const float smoothing_radius ///< the smoothing_radius that will be passed to SPH(). Must be > 0.
     );
 
     /// Set particle color from the number of nearby particles.
@@ -403,21 +409,6 @@ public:
                       const pVec& color_sparse,  ///< color for particles with min_neighbors or fewer
                       const pVec& color_dense    ///< color for particles with max_neighbors or more
     );
-
-    /// Add particles with positions in the specified domain.
-    ///
-    /// Adds new particles to the current particle group. The particle positions are chosen from the given domain. All the other particle
-    /// attributes such as color and velocity are chosen according to their current domains.
-    ///
-    /// When the Source action is called within an action list, the particle attribute domains used are those that were current when the Source
-    /// command was called within the NewActionList() / EndActionList() block instead of when CallActionList() was called. Note that this is unlike OpenGL
-    /// display lists.
-    ///
-    /// If particle_rate / dt is not an integer then Source() adjusts the number of particles to add during this time step so that the average
-    /// number added per unit time is particle_rate.
-    ///
-    /// If too few particles seem to be added each frame, it is probably because the particle group is already full. If this is bad, you can
-    /// grow the group using SetMaxParticles().
 
     /// <summary>
     /// Loop over particles executing all actions expressed in function f

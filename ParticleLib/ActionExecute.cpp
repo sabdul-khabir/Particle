@@ -114,6 +114,8 @@ std::string PAResolveCollisions::abrv = "RCo";
 std::string PAResolveCollisions::name = "PAResolveCollisions";
 std::string PASPH::abrv = "SPH";
 std::string PASPH::name = "PASPH";
+std::string PAUpdateSpatialGrid::abrv = "USG";
+std::string PAUpdateSpatialGrid::name = "PAUpdateSpatialGrid";
 std::string PAVelocityColor::abrv = "VC";
 std::string PAVelocityColor::name = "PAVelocityColor";
 std::string PAVelocitySize::abrv = "VS";
@@ -408,58 +410,45 @@ void PAResolveCollisions::Execute(ParticleGroup& group, ParticleList::iterator i
     std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) { m.vel += dv[&m - beginp]; });
 }
 
-// Smoothed Particle Hydrodynamics using the kernels of Mueller et al. 2003:
-// poly6 for density, spiky gradient for pressure, and the viscosity Laplacian for viscosity.
+// Bin the whole group into grid and compute every particle's SPH density. Used by SPH() and UpdateSpatialGrid().
+static void BuildSPHGrid(PSpatialGrid_t& grid, ParticleGroup& group, const float smoothing_radius)
+{
+    ParticleList& L = group.GetList();
+    const Particle_t* beginp = L.data(); // data(), not &*begin(), so an empty group is fine
+    grid.Build(beginp, beginp + L.size(), smoothing_radius);
+    grid.density.resize(L.size());
+    std::for_each(P_EXPOLP, L.begin(), L.end(), [&](Particle_t& m) { grid.density[&m - beginp] = PASPHDensity_Impl(m, beginp, grid); });
+}
+
+// Smoothed Particle Hydrodynamics. All densities are computed first, then all accelerations from the same starting state,
+// so the result doesn't depend on particle order.
 void PASPH::Execute(ParticleGroup& group, ParticleList::iterator ibegin, ParticleList::iterator iend)
 {
     LIB_ASSERT(ibegin == group.begin() && iend == group.end(), "Can only be done on whole list");
     const size_t n = iend - ibegin;
     if (n < 1) return;
-    const Particle_t* beginp = &*ibegin;
-    const Particle_t* endp = beginp + n;
 
-    const float h = smoothing_radius;
-    const float h2 = h * h;
-    const float poly6 = 315.f / (64.f * (float)M_PI * powf(h, 9.f));
-    const float spikyGrad = 45.f / ((float)M_PI * powf(h, 6.f)); // Magnitude of the spiky kernel gradient coefficient
-    const float viscLap = 45.f / ((float)M_PI * powf(h, 6.f));
-
-    // Pass 1: density and pressure of every particle
-    std::vector<float> density(n), pressure(n);
-    std::for_each(P_EXPOLP, ibegin, iend, [&](Particle_t& m) {
-        float rho = 0.f;
-        for (const Particle_t* p1 = beginp; p1 != endp; ++p1) {
-            const float r2 = (p1->pos - m.pos).lenSqr();
-            if (r2 < h2) rho += p1->mass * poly6 * fsqr(h2 - r2) * (h2 - r2);
-        }
-        const size_t i = &m - beginp;
-        density[i] = rho;
-        pressure[i] = fmaxf(0.f, pressure_multiplier * (rho - target_density)); // No tension, to avoid clumping
-    });
+    // Pass 1: density of every particle. The legacy action uses its own grid, so it doesn't disturb one made by UpdateSpatialGrid().
+    PSpatialGrid_t grid;
+    BuildSPHGrid(grid, group, smoothing_radius);
 
     // Pass 2: accelerations from the densities of pass 1
+    const Particle_t* beginp = group.GetList().data();
     std::vector<pVec> acc(n);
     std::for_each(P_EXPOLP, ibegin, iend, [&](Particle_t& m) {
         const size_t i = &m - beginp;
-        pVec f(0.f);
-        for (const Particle_t* p1 = beginp; p1 != endp; ++p1) {
-            if (p1 == &m) continue;
-            const pVec rij = m.pos - p1->pos;
-            const float r = rij.length();
-            if (!(r > 0.f && r < h)) continue;
-            const size_t j = p1 - beginp;
-            const float rhoj = density[j];
-            if (rhoj <= 0.f) continue;
-
-            // Symmetric pressure term pushes i away from j
-            f += rij * (p1->mass * (pressure[i] + pressure[j]) / (2.f * rhoj) * spikyGrad * fsqr(h - r) / r);
-            // Viscosity pulls i's velocity toward j's
-            f += (p1->vel - m.vel) * (viscosity * p1->mass / rhoj * viscLap * (h - r));
-        }
-        acc[i] = density[i] > 0.f ? f / density[i] : pVec(0.f);
+        acc[i] = PASPHAccel_Impl(m, i, target_density, pressure_multiplier, viscosity, beginp, grid);
     });
 
     std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) { m.vel += acc[&m - beginp] * dt; });
+}
+
+// Bin the group and compute its SPH densities for the inline SPH() calls in the next ParticleLoop()
+void PAUpdateSpatialGrid::Execute(ParticleGroup& group, ParticleList::iterator ibegin, ParticleList::iterator iend)
+{
+    LIB_ASSERT(ibegin == group.begin() && iend == group.end(), "Can only be done on whole list");
+    BuildSPHGrid(group.sph_grid, group, smoothing_radius);
+    group.sph_grid.ready = true;
 }
 
 // Color by number of neighbors within radius

@@ -96,19 +96,19 @@ void Update(float frameSeconds)
 ## 4. Performance Best Practices
 
 ### Use Inline Mode
-Prefer inline actions (`P.Gravity(p, ...)` inside `ParticleLoop()`) over legacy actions (`P.Gravity(...)` called on its own). Legacy mode makes a full pass over every particle for *every* action; inline mode makes **one** pass for **all** actions, keeping each particle in the CPU cache. Legacy mode is still needed for action lists and for the few actions that are legacy-only (`SPH()`, `DensityColor()`).
+Prefer inline actions (`P.Gravity(p, ...)` inside `ParticleLoop()`) over legacy actions (`P.Gravity(...)` called on its own). Legacy mode makes a full pass over every particle for *every* action; inline mode makes **one** pass for **all** actions, keeping each particle in the CPU cache. Legacy mode is still needed for action lists and for the one legacy-only action, `DensityColor()`.
 
 ### Parallelize via Execution Policies
 Pass `std::execution::par_unseq` to `ParticleLoop()` to spread the work across CPU cores and SIMD lanes. GCC's standard library implements parallel policies with TBB, which the library already requires and links.
 
-Actions that read *other* particles (`Follow()`, `Gravitate()`, `MatchVelocity()`, `MatchRotVelocity()`, `ResolveCollisions()`) see their neighbors part-way through being updated in inline mode. With a parallel policy the results vary from run to run. Use a sequential loop, or the legacy version of the action, when you need repeatable results.
+Actions that read *other* particles (`Follow()`, `Gravitate()`, `MatchVelocity()`, `MatchRotVelocity()`, `ResolveCollisions()`, `SPH()`) see their neighbors part-way through being updated in inline mode. With a parallel policy the results vary from run to run. Use a sequential loop, or the legacy version of the action, when you need repeatable results.
 
 ### Build Domains Outside the Loop
 A domain written inside the `ParticleLoop()` lambda, for example `P.Sink(p, false, PDPlane(...))`, is constructed again for every particle. Construct it once before the loop, as in the example above.
 
 ### Action Ordering
 *   **Velocity, then position:** apply forces (gravity, jets, orbits) first, then constraints such as `Bounce()` and `ResolveCollisions()`, then `Move()`. `Bounce()` checks whether the particle *would* cross the domain during `Move()`, so it should be the last action that changes velocity before `Move()`.
-*   **Avoid O(N²) actions on large groups:** `Gravitate()`, `MatchVelocity()`, `ResolveCollisions()`, `SPH()` and `DensityColor()` compare every particle with every other particle. Use them on small groups, or limit their reach with `max_radius` where available.
+*   **Avoid O(N²) actions on large groups:** `Gravitate()`, `MatchVelocity()`, `ResolveCollisions()` and `DensityColor()` compare every particle with every other particle. Use them on small groups, or limit their reach with `max_radius` where available. `SPH()` is the exception: it finds neighbors with a spatial grid, so its cost grows with the number of particles times the number of neighbors each one has.
 
 ### Rendering Efficiency
 Use `GetParticlePointer()` instead of `GetParticles()`. It returns a pointer to the API's own particle memory plus the offset of each attribute and the stride between particles, which you can pass directly to `glVertexAttribPointer()` or `glBufferData()` without a CPU-side copy.
@@ -179,7 +179,7 @@ Below is a categorized list of actions available in the Particle System API.
 *   `MatchVelocity` / `MatchRotVelocity`: Flocking behavior (Alignment); particles mimic their neighbors.
 *   `Gravitate`: N-Body simulation where every particle attracts every other particle.
 *   `ResolveCollisions`: Elastic collisions between particles using their mass and radius.
-*   `SPH`: Smoothed Particle Hydrodynamics for high-performance fluid and gas simulation.
+*   `SPH`: Smoothed Particle Hydrodynamics for fluid simulation, using a spatial grid to find each particle's neighbors.
 
 ### Attribute Management
 *   `TargetColor` / `TargetSize` / `TargetVelocity`: Asymptotically transition attributes toward a target.
@@ -197,7 +197,7 @@ These actions were added after version 3.0. See their full documentation in `pAc
 | `Waypoints()` | Steers particles along a list of points, optionally looping | Stores each particle's current waypoint index in `Particle_t::data`, so don't use it on particles whose `data` holds your own values. Combine with `Damping()` or a generous `arrival_radius` so particles don't circle a waypoint. |
 | `VoxelField()` | Adds accelerations sampled from a 3D grid of vectors | Field data is laid out x-fastest: `field[(z * dim_y + y) * dim_x + x]`. Trilinear interpolation by default. |
 | `ResolveCollisions()` | Bounces particles off each other as spheres of radius `size.x` | Changes velocity only; it doesn't separate particles that already overlap. O(N²). |
-| `SPH()` | Smoothed Particle Hydrodynamics fluid | Legacy API only. Stiff: lower `dt` or `pressure_multiplier` if the fluid explodes. O(N²). |
+| `SPH()` | Smoothed Particle Hydrodynamics fluid | Inline or legacy. Inline `SPH()` needs `UpdateSpatialGrid()`, with the same `smoothing_radius`, right before each `ParticleLoop()` (see below). Stiff: lower `dt` or `pressure_multiplier` if the fluid explodes. |
 | `PositionColor()` | Maps position x/y/z to color r/g/b over a box | |
 | `VelocityColor()`, `VelocitySize()` | Map speed to color or size between two values | |
 | `RandomColor()` | Adds a random color change each step, like `RandomAccel()` for color | |
@@ -212,6 +212,20 @@ P.ParticleLoop(std::execution::par_unseq, [&](Particle_t& p) {
     P.Waypoints(p, track, 4, 5.0f, 2.0f);                        // magnitude 5, arrive within 2 units
     P.Damping(p, pVec(0.5f));                                    // Bleed off speed so particles don't overshoot
     P.VelocityColor(p, 0.0f, 8.0f, pVec(0, 0, 1), pVec(1, 0, 0)); // Blue when slow, red at 8 units/second
+    P.Move(p);
+});
+```
+
+Inline `SPH()` needs every particle's density before it can compute any particle's force, so `UpdateSpatialGrid()` computes all the densities just before the loop. The `Showcase` dam-break scene runs this next to the legacy version:
+
+```cpp
+const PDBox Tank(pVec(0, 0, 0), pVec(5, 1.6f, 4));
+
+P.UpdateSpatialGrid(0.4f);                                // Before every loop that calls SPH(), with SPH()'s smoothing_radius
+P.ParticleLoop(std::execution::par_unseq, [&](Particle_t& p) {
+    P.SPH(p, 0.4f, 110.0f, 20.0f, 1.0f);                  // smoothing_radius, target_density, pressure_multiplier, viscosity
+    P.Gravity(p, pVec(0, 0, -9.8f));
+    P.Bounce(p, 0.02f, 0.2f, 0.0f, Tank);
     P.Move(p);
 });
 ```

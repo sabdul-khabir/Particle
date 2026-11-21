@@ -1,13 +1,41 @@
-/// Add new particles using the current particle as a source.
-/// This allows for trails, sparks from moving objects, etc., in inline mode.
+/// Add particles with positions in the specified domain.
+///
+/// Adds new particles to the current particle group. The particle positions are chosen from the given domain. All the other particle
+/// attributes such as color and velocity are chosen according to their current domains.
+///
+/// When the Source action is called within an action list, the particle attribute domains used are those that were current when the Source
+/// command was called within the NewActionList() / EndActionList() block instead of when CallActionList() was called. Note that this is unlike OpenGL
+/// display lists.
+///
+/// If particle_rate / dt is not an integer then Source() adjusts the number of particles to add during this time step so that the average
+/// number added per unit time is particle_rate.
+///
+/// If too few particles seem to be added each frame, it is probably because the particle group is already full. If this is bad, you can
+/// grow the group using SetMaxParticles().
+///
+/// In inline mode the current particle is the source, which allows for trails, sparks from moving objects, etc. The positions chosen from
+/// dom are relative to the current particle, and the new particles are added to the group by CommitSources() after the ParticleLoop().
 void Source(PARG const float particle_rate, ///< how many particles to add per unit time
-            const pDomain& dom,        ///< particle positions are relative to this particle if used in inline mode
+            const pDomain& dom,        ///< particle positions are chosen from this domain; relative to this particle in inline mode
             const pSourceState& SrcSt  ///< all other particle attributes are chosen from this source state
 );
 
 /// Add a single particle at the specified location.
-/// In inline mode, the vertex 'v' is treated as an offset from the current particle's position.
-void Vertex(PARG const pVec& v,             ///< position offset of particle to create
+///
+/// This action mostly is a shorthand for Source(1, PDPoint(x, y, z)) but allows different callback data per particle.
+///
+/// When called in immediate mode, this action uses a slightly faster method to add a single particle to the current particle group.
+/// Also when in immediate mode, exactly one particle will be added per call, instead of an average of 1 / dt particles being added.
+/// Particle attributes are chosen according to their current domains, as with Source.
+///
+/// The user data attribute is an exception. It always takes the attribute from the optional data parameter to Vertex(), overriding the source state value.
+///
+/// This call is patterned after the glVertex() calls. It is useful for creating a particle group with exactly specified initial positions.
+/// For example, you can specify a geometrical model using Vertex calls, and then explode or deform it.
+///
+/// In inline mode, v is an offset from the current particle's position, and the new particle is added to the group by CommitSources()
+/// after the ParticleLoop().
+void Vertex(PARG const pVec& v,             ///< position of particle to create; an offset from the current particle in inline mode
             const pSourceState& SrcSt, ///< all other particle attributes are chosen from this source state
             const pdata_t data = 0     ///< application data to be passed to the birth and death callbacks
 );
@@ -395,16 +423,32 @@ void ResolveCollisions(PARG const float resilience = 1.0f, ///< fraction of the 
                        const float friction = 0.0f         ///< Coulomb friction coefficient for sliding contact; 0 = frictionless
 );
 
-/// Use Smoothed Particle Hydrodynamics (SPH) to simulate fluid behavior.
-/// This implementation uses a uniform spatial grid for O(N) performance.
-/// Ensure UpdateSpatialGrid() is called before using this in a loop.
-void SPH(PARG const float target_density, const float pressure_multiplier, const float viscosity);
-
-/// Naive O(N^2) SPH implementation for comparison and benchmarking.
-void SPHNaive(PARG const float target_density, const float pressure_multiplier, const float viscosity);
-
-/// Rebuild the internal spatial grid for the current particle group.
-void UpdateSpatialGrid(PARG const float smoothing_length);
+/// Simulate the particles as a fluid using Smoothed Particle Hydrodynamics (SPH).
+///
+/// Each particle's density is estimated from the masses of the particles within smoothing_radius of it. Particles in regions denser than
+/// target_density push each other apart with a force proportional to pressure_multiplier * (density - target_density). Regions less
+/// dense than target_density exert no pressure, which avoids particles clumping. A viscosity term pulls each particle's velocity toward
+/// its neighbors' velocities. The resulting accelerations are added to the particle velocities; call Move() afterward.
+///
+/// The density scale depends on smoothing_radius and particle mass. A particle alone has density of roughly
+/// mass * 1.57 / smoothing_radius^3, so a target_density several times that keeps a few neighbors within reach of each particle.
+/// SPH is stiff: if particles explode apart, reduce dt or pressure_multiplier, or add viscosity.
+///
+/// Neighbors are found with a spatial grid whose cells are smoothing_radius wide, so the cost is proportional to the number of particles
+/// times the typical number of neighbors, not to the square of the number of particles.
+///
+/// Each particle's force depends on its neighbors' densities, so every density must be known before any force is computed:
+/// - The legacy action computes all densities, then all accelerations from that same starting state, so the result does not depend on
+///   particle order.
+/// - The inline action uses densities computed by UpdateSpatialGrid(). Call UpdateSpatialGrid() with the same smoothing_radius right before
+///   each ParticleLoop() that calls SPH(). Without it, inline SPH() does nothing (Debug builds throw an error). As with other inline actions
+///   that read other particles, each particle reads its neighbors' positions and velocities while they are being updated, so results vary
+///   slightly from run to run with a parallel execution policy.
+void SPH(PARG const float smoothing_radius,    ///< particles further apart than this do not interact. Must be > 0.
+         const float target_density,      ///< rest density of the fluid
+         const float pressure_multiplier, ///< stiffness: how strongly density above target_density pushes particles apart
+         const float viscosity            ///< how strongly neighboring particles' velocities are averaged; 0 for none
+);
 
 //////////////////////////////////////////////////////////////////
 // Attribute mapping actions

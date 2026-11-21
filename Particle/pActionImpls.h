@@ -26,6 +26,7 @@
 #include "Particle/pDeclarations.h"
 #include "Particle/pParticle.h"
 #include "Particle/pSourceState.h"
+#include "Particle/pSpatialGrid.h"
 #include <algorithm>
 #include <vector>
 
@@ -1040,151 +1041,54 @@ PINLINE pVec PAResolveCollisionsDV_Impl(const Particle_t& m, const float resilie
 }
 
 //////////////////////////////////////////////////////////////////
-// Spatial Partitioning Helpers
+// Smoothed Particle Hydrodynamics, using the kernels of Mueller et al. 2003:
+// poly6 for density, spiky gradient for pressure, and the viscosity Laplacian for viscosity.
+// The legacy SPH() action and the inline SPH() share these functions. Neighbors are found with a PSpatialGrid_t.
 
-/// Component-wise minimum of two vectors.
-PINLINE pVec Min(const pVec& a, const pVec& b)
+// SPH density at particle m: the poly6-weighted sum of the masses of the particles within grid.h of m, including m itself.
+PINLINE float PASPHDensity_Impl(const Particle_t& m, const Particle_t* ibegin, const PSpatialGrid_t& grid)
 {
-    return pVec(std::min(a.x(), b.x()), std::min(a.y(), b.y()), std::min(a.z(), b.z()));
+    const float h = grid.h;
+    const float h2 = h * h;
+    const float poly6 = 315.f / (64.f * (float)M_PI * powf(h, 9.f));
+
+    float rho = 0.f;
+    grid.ForEachNeighbor(m.pos, [&](const unsigned int j) {
+        const float r2 = (ibegin[j].pos - m.pos).lenSqr();
+        if (r2 < h2) rho += ibegin[j].mass * poly6 * fsqr(h2 - r2) * (h2 - r2);
+    });
+    return rho;
 }
 
-/// Component-wise maximum of two vectors.
-PINLINE pVec Max(const pVec& a, const pVec& b)
+// Acceleration of particle m, which is ibegin[i], from pressure and viscosity. grid.density must hold every particle's density.
+PINLINE pVec PASPHAccel_Impl(const Particle_t& m, const size_t i, const float target_density, const float pressure_multiplier, const float viscosity,
+                             const Particle_t* ibegin, const PSpatialGrid_t& grid)
 {
-    return pVec(std::max(a.x(), b.x()), std::max(a.y(), b.y()), std::max(a.z(), b.z()));
-}
+    const float rhoi = grid.density[i];
+    if (!(rhoi > 0.f)) return pVec(0.f);
 
-struct PSpatialGrid_t {
-    pVec min_pos;
-    float h, inv_h;
-    int dims[3];
-    std::vector<int> heads; // Head of linked list for each cell
-    std::vector<int> next;  // Next particle index in linked list
+    const float h = grid.h;
+    const float spikyGrad = 45.f / ((float)M_PI * powf(h, 6.f)); // Magnitude of the spiky kernel gradient coefficient
+    const float viscLap = 45.f / ((float)M_PI * powf(h, 6.f));
+    const float pressi = fmaxf(0.f, pressure_multiplier * (rhoi - target_density)); // No tension, to avoid clumping
 
-    PSpatialGrid_t() : h(0), inv_h(0) { dims[0] = dims[1] = dims[2] = 0; }
+    pVec f(0.f);
+    grid.ForEachNeighbor(m.pos, [&](const unsigned int j) {
+        if (j == i) return;
+        const Particle_t& pj = ibegin[j];
+        const pVec rij = m.pos - pj.pos;
+        const float r = rij.length();
+        if (!(r > 0.f && r < h)) return;
+        const float rhoj = grid.density[j];
+        if (rhoj <= 0.f) return;
+        const float pressj = fmaxf(0.f, pressure_multiplier * (rhoj - target_density));
 
-    void Build(const Particle_t* ibegin, const Particle_t* iend, float smoothing_length) {
-        h = smoothing_length;
-        inv_h = 1.0f / h;
-        int count = (int)(iend - ibegin);
-        if (count == 0) return;
-
-        min_pos = ibegin[0].pos;
-        pVec max_pos = min_pos;
-        for (int i = 1; i < count; ++i) {
-            min_pos = Min(min_pos, ibegin[i].pos);
-            max_pos = Max(max_pos, ibegin[i].pos);
-        }
-
-        dims[0] = (int)((max_pos.x() - min_pos.x()) * inv_h) + 1;
-        dims[1] = (int)((max_pos.y() - min_pos.y()) * inv_h) + 1;
-        dims[2] = (int)((max_pos.z() - min_pos.z()) * inv_h) + 1;
-
-        heads.assign(dims[0] * dims[1] * dims[2], -1);
-        next.assign(count, -1);
-
-        for (int i = 0; i < count; ++i) {
-            int cx = (int)((ibegin[i].pos.x() - min_pos.x()) * inv_h);
-            int cy = (int)((ibegin[i].pos.y() - min_pos.y()) * inv_h);
-            int cz = (int)((ibegin[i].pos.z() - min_pos.z()) * inv_h);
-            int idx = cz * dims[0] * dims[1] + cy * dims[0] + cx;
-            if (idx >= 0 && idx < (int)heads.size()) {
-                next[i] = heads[idx];
-                heads[idx] = i;
-            }
-        }
-    }
-
-    PINLINE int GetCellIndex(int x, int y, int z) const {
-        if (x < 0 || x >= dims[0] || y < 0 || y >= dims[1] || z < 0 || z >= dims[2]) return -1;
-        return z * dims[0] * dims[1] + y * dims[0] + x;
-    }
-};
-
-PINLINE void PAUpdateSpatialGrid_Impl(Particle_t& m, const float dt, const float smoothing_length, const Particle_t* ibegin, const Particle_t* iend, PSpatialGrid_t& grid)
-{
-    if (&m == ibegin) grid.Build(ibegin, iend, smoothing_length);
-}
-
-/// Naive O(N^2) SPH implementation for comparison.
-PINLINE void PASPHNaive_Impl(Particle_t& m, const float dt, const float target_density, const float pressure_multiplier, const float viscosity, const Particle_t* ibegin, const Particle_t* iend)
-{
-    float density = 0.0f;
-    float h = m.size.x() * 2.0f; // Smoothing length
-    float h2 = h * h;
-    const float pi = 3.14159265f;
-
-    for (const Particle_t* p1 = ibegin; p1 != iend; ++p1) {
-        float r2 = (p1->pos - m.pos).lenSqr();
-        if (r2 < h2) density += m.mass * (315.0f / (64.0f * pi * powf(h, 9))) * powf(h2 - r2, 3);
-    }
-
-    float pressure = pressure_multiplier * (density - target_density);
-    pVec pressureForce(0.0f), viscosityForce(0.0f);
-
-    for (const Particle_t* p1 = ibegin; p1 != iend; ++p1) {
-        if (p1 == &m) continue;
-        pVec rVec = m.pos - p1->pos;
-        float r = rVec.length();
-        if (r < h && r > 0) {
-            float avg_p = (pressure + pressure_multiplier * (density - target_density)) * 0.5f;
-            pressureForce -= rVec * (m.mass * avg_p * (45.0f / (M_PI * powf(h, 6))) * powf(h - r, 2) / r);
-            //pressureForce -= rVec * (m.mass * pressure * (45.0f / (pi * powf(h, 6))) * powf(h - r, 2) / r);
-            viscosityForce += (p1->vel - m.vel) * (viscosity * m.mass * (45.0f / (pi * powf(h, 6))) * (h - r));
-        }
-    }
-    m.vel += (pressureForce + viscosityForce) * (dt / (density > 0.001f ? density : 1.0f));
-}
-
-/// Refactored O(N) SPH implementation using a uniform spatial grid.
-PINLINE void PASPH_Impl(Particle_t& m, const float dt, const float target_density, const float pressure_multiplier, const float viscosity, const Particle_t* ibegin, const Particle_t* iend, const PSpatialGrid_t* grid = nullptr)
-{
-    if (!grid || grid->h <= 0) { PASPHNaive_Impl(m, dt, target_density, pressure_multiplier, viscosity, ibegin, iend); return; }
-
-    float density = 0.0f;
-    float h = grid->h;
-    float h2 = h * h;
-    const float pi = 3.14159265f;
-
-    int cx = (int)((m.pos.x() - grid->min_pos.x()) * grid->inv_h);
-    int cy = (int)((m.pos.y() - grid->min_pos.y()) * grid->inv_h);
-    int cz = (int)((m.pos.z() - grid->min_pos.z()) * grid->inv_h);
-
-    for (int i = cz - 1; i <= cz + 1; ++i) {
-        for (int j = cy - 1; j <= cy + 1; ++j) {
-            for (int k = cx - 1; k <= cx + 1; ++k) {
-                int cellIdx = grid->GetCellIndex(k, j, i);
-                if (cellIdx == -1) continue;
-                for (int idx = grid->heads[cellIdx]; idx != -1; idx = grid->next[idx]) {
-                    float r2 = (ibegin[idx].pos - m.pos).lenSqr();
-                    if (r2 < h2) density += m.mass * (315.0f / (64.0f * pi * powf(h, 9))) * powf(h2 - r2, 3);
-                }
-            }
-        }
-    }
-
-    float pressure = pressure_multiplier * (density - target_density);
-    pVec pressureForce(0.0f), viscosityForce(0.0f);
-
-    for (int i = cz - 1; i <= cz + 1; ++i) {
-        for (int j = cy - 1; j <= cy + 1; ++j) {
-            for (int k = cx - 1; k <= cx + 1; ++k) {
-                int cellIdx = grid->GetCellIndex(k, j, i);
-                if (cellIdx == -1) continue;
-                for (int idx = grid->heads[cellIdx]; idx != -1; idx = grid->next[idx]) {
-                    const Particle_t& p1 = ibegin[idx];
-                    if (&p1 == &m) continue;
-                    pVec rVec = m.pos - p1.pos;
-                    float r = rVec.length();
-                    if (r < h && r > 0) {
-                        pressureForce -= rVec * (m.mass * pressure * (45.0f / (pi * powf(h, 6))) * powf(h - r, 2) / r);
-                        viscosityForce += (p1.vel - m.vel) * (viscosity * m.mass * (45.0f / (pi * powf(h, 6))) * (h - r));
-                    }
-                }
-            }
-        }
-    }
-    m.vel += (pressureForce + viscosityForce) * (dt / (density > 0.001f ? density : 1.0f));
+        // Symmetric pressure term pushes i away from j
+        f += rij * (pj.mass * (pressi + pressj) / (2.f * rhoj) * spikyGrad * fsqr(h - r) / r);
+        // Viscosity pulls i's velocity toward j's
+        f += (pj.vel - m.vel) * (viscosity * pj.mass / rhoj * viscLap * (h - r));
+    });
+    return f / rhoi;
 }
 
 //////////////////////////////////////////////////////////////////
