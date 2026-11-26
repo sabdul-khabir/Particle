@@ -11,6 +11,7 @@
 
 #include "LibHelpers.h"
 #include "Particle/pParticle.h"
+#include "Particle/pSpatialGrid.h"
 
 #include <algorithm>
 #include <vector>
@@ -37,11 +38,13 @@ private:
     pdata_t group_death_data;     // Pass this to the death callback
 
 public:
+    PSpatialGrid_t sph_grid; // Built by UpdateSpatialGrid() for the inline SPH() calls in the next ParticleLoop(). Not copied with the group.
+
     ParticleGroup()
     {
         max_particles = 0;
-        cb_birth = NULL;
-        cb_death = NULL;
+        cb_birth = nullptr;
+        cb_death = nullptr;
         group_birth_data = 0;
         group_death_data = 0;
     }
@@ -49,10 +52,10 @@ public:
     ParticleGroup(size_t maxp) : max_particles(maxp)
     {
         list.reserve(max_particles);
-        cb_birth = NULL;
-        cb_death = NULL;
-        group_birth_data = NULL;
-        group_death_data = NULL;
+        cb_birth = nullptr;
+        cb_death = nullptr;
+        group_birth_data = 0;
+        group_death_data = 0;
     }
 
     ParticleGroup(const ParticleGroup& rhs) : list(rhs.list)
@@ -80,6 +83,7 @@ public:
                 for (it = list.begin(); it != list.end(); ++it) (*cb_death)((*it), group_death_data);
             }
             list = rhs.list;
+            sph_grid.Clear(); // It described the old particles
             cb_birth = rhs.cb_birth;
             cb_death = rhs.cb_death;
             group_birth_data = rhs.group_birth_data;

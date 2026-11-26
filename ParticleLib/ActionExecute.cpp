@@ -15,6 +15,7 @@
 #include <sstream>
 #include <string>
 #include <typeinfo>
+#include <vector>
 
 // Remove these if not C++17.
 // #define P_EXPOL std::execution::par_unseq
@@ -37,6 +38,8 @@ std::string PACallActionList::abrv = "CAL";
 std::string PACallActionList::name = "PACallActionList";
 std::string PACallback::abrv = "CB";
 std::string PACallback::name = "PACallback";
+std::string PACommitSources::abrv = "CS";
+std::string PACommitSources::name = "PACommitSources";
 std::string PACommitKills::abrv = "CK";
 std::string PACommitKills::name = "PACommitKills";
 std::string PACopyVertexB::abrv = "CVB";
@@ -97,6 +100,26 @@ std::string PATargetVelocity::abrv = "TV";
 std::string PATargetVelocity::name = "PATargetVelocity";
 std::string PAVortex::abrv = "Vo";
 std::string PAVortex::name = "PAVortex";
+std::string PAVoxelField::abrv = "VF";
+std::string PAVoxelField::name = "PAVoxelField";
+std::string PAWaypoints::abrv = "WP";
+std::string PAWaypoints::name = "PAWaypoints";
+std::string PADensityColor::abrv = "DC";
+std::string PADensityColor::name = "PADensityColor";
+std::string PAPositionColor::abrv = "PC";
+std::string PAPositionColor::name = "PAPositionColor";
+std::string PARandomColor::abrv = "RC";
+std::string PARandomColor::name = "PARandomColor";
+std::string PAResolveCollisions::abrv = "RCo";
+std::string PAResolveCollisions::name = "PAResolveCollisions";
+std::string PASPH::abrv = "SPH";
+std::string PASPH::name = "PASPH";
+std::string PAUpdateSpatialGrid::abrv = "USG";
+std::string PAUpdateSpatialGrid::name = "PAUpdateSpatialGrid";
+std::string PAVelocityColor::abrv = "VC";
+std::string PAVelocityColor::name = "PAVelocityColor";
+std::string PAVelocitySize::abrv = "VS";
+std::string PAVelocitySize::name = "PAVelocitySize";
 
 void PAAvoid::Exec(const PDTriangle& dom, ParticleGroup& group, ParticleList::iterator ibegin, ParticleList::iterator iend)
 {
@@ -321,6 +344,47 @@ void PAVortex::Execute(ParticleGroup& group, ParticleList::iterator ibegin, Part
     std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) { PAVortex_Impl(m, dt, tip, axis, tightnessExponent, max_radius, inSpeed, upSpeed, aroundSpeed); });
 }
 
+// Accelerate particles by a vector field sampled on a 3D grid
+void PAVoxelField::Execute(ParticleGroup& group, ParticleList::iterator ibegin, ParticleList::iterator iend)
+{
+    const pVec* fd = field_data.data();
+    std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) {
+        PAVoxelField_Impl(m, dt, grid_origin, grid_size, dim_x, dim_y, dim_z, fd, magnitude, interpolate);
+    });
+}
+
+// Color from position
+void PAPositionColor::Execute(ParticleGroup& group, ParticleList::iterator ibegin, ParticleList::iterator iend)
+{
+    std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) { PAPositionColor_Impl(m, dt, pos_min, pos_max, color_min, color_max); });
+}
+
+// Random color drift
+void PARandomColor::Execute(ParticleGroup& group, ParticleList::iterator ibegin, ParticleList::iterator iend)
+{
+    std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) { PARandomColor_Impl(m, dt, *gen_color); });
+}
+
+// Color from speed
+void PAVelocityColor::Execute(ParticleGroup& group, ParticleList::iterator ibegin, ParticleList::iterator iend)
+{
+    std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) { PAVelocityColor_Impl(m, dt, min_speed, max_speed, color_slow, color_fast); });
+}
+
+// Size from speed
+void PAVelocitySize::Execute(ParticleGroup& group, ParticleList::iterator ibegin, ParticleList::iterator iend)
+{
+    std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) { PAVelocitySize_Impl(m, dt, min_speed, max_speed, size_slow, size_fast); });
+}
+
+// Accelerate particles along a path of waypoints
+void PAWaypoints::Execute(ParticleGroup& group, ParticleList::iterator ibegin, ParticleList::iterator iend)
+{
+    const pVec* wp = waypoints.data();
+    const int count = (int)waypoints.size();
+    std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) { PAWaypoints_Impl(m, dt, wp, count, magnitude, arrival_radius, loop, epsilon); });
+}
+
 //////////////////////////////////////////////////////////////////
 // Inter-particle actions
 
@@ -331,6 +395,84 @@ void PAFollow::Execute(ParticleGroup& group, ParticleList::iterator ibegin, Part
     if (group.size() < 2) return;
     const Particle_t* endp = &*ibegin + (iend - ibegin);
     std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) { PAFollow_Impl(m, dt, magnitude, epsilon, max_radius, &*ibegin, endp); });
+}
+
+// Sphere-sphere collisions. Velocity changes are all computed from the starting velocities, then applied, so the result is order independent.
+void PAResolveCollisions::Execute(ParticleGroup& group, ParticleList::iterator ibegin, ParticleList::iterator iend)
+{
+    LIB_ASSERT(ibegin == group.begin() && iend == group.end(), "Can only be done on whole list");
+    if (group.size() < 2) return;
+    const Particle_t* beginp = &*ibegin;
+    const Particle_t* endp = beginp + (iend - ibegin);
+
+    std::vector<pVec> dv(iend - ibegin);
+    std::for_each(P_EXPOLP, ibegin, iend, [&](Particle_t& m) { dv[&m - beginp] = PAResolveCollisionsDV_Impl(m, resilience, friction, beginp, endp); });
+    std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) { m.vel += dv[&m - beginp]; });
+}
+
+// Bin the whole group into grid and compute every particle's SPH density. Used by SPH() and UpdateSpatialGrid().
+static void BuildSPHGrid(PSpatialGrid_t& grid, ParticleGroup& group, const float smoothing_radius)
+{
+    ParticleList& L = group.GetList();
+    const Particle_t* beginp = L.data(); // data(), not &*begin(), so an empty group is fine
+    grid.Build(beginp, beginp + L.size(), smoothing_radius);
+    grid.density.resize(L.size());
+    std::for_each(P_EXPOLP, L.begin(), L.end(), [&](Particle_t& m) { grid.density[&m - beginp] = PASPHDensity_Impl(m, beginp, grid); });
+}
+
+// Smoothed Particle Hydrodynamics. All densities are computed first, then all accelerations from the same starting state,
+// so the result doesn't depend on particle order.
+void PASPH::Execute(ParticleGroup& group, ParticleList::iterator ibegin, ParticleList::iterator iend)
+{
+    LIB_ASSERT(ibegin == group.begin() && iend == group.end(), "Can only be done on whole list");
+    const size_t n = iend - ibegin;
+    if (n < 1) return;
+
+    // Pass 1: density of every particle. The legacy action uses its own grid, so it doesn't disturb one made by UpdateSpatialGrid().
+    PSpatialGrid_t grid;
+    BuildSPHGrid(grid, group, smoothing_radius);
+
+    // Pass 2: accelerations from the densities of pass 1
+    const Particle_t* beginp = group.GetList().data();
+    std::vector<pVec> acc(n);
+    std::for_each(P_EXPOLP, ibegin, iend, [&](Particle_t& m) {
+        const size_t i = &m - beginp;
+        acc[i] = PASPHAccel_Impl(m, i, target_density, pressure_multiplier, viscosity, beginp, grid);
+    });
+
+    std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) { m.vel += acc[&m - beginp] * dt; });
+}
+
+// Bin the group and compute its SPH densities for the inline SPH() calls in the next ParticleLoop()
+void PAUpdateSpatialGrid::Execute(ParticleGroup& group, ParticleList::iterator ibegin, ParticleList::iterator iend)
+{
+    LIB_ASSERT(ibegin == group.begin() && iend == group.end(), "Can only be done on whole list");
+    BuildSPHGrid(group.sph_grid, group, smoothing_radius);
+    group.sph_grid.ready = true;
+}
+
+// Color by number of neighbors within radius
+void PADensityColor::Execute(ParticleGroup& group, ParticleList::iterator ibegin, ParticleList::iterator iend)
+{
+    LIB_ASSERT(ibegin == group.begin() && iend == group.end(), "Can only be done on whole list");
+    const size_t n = iend - ibegin;
+    if (n < 1) return;
+    const Particle_t* beginp = &*ibegin;
+    const Particle_t* endp = beginp + n;
+    const float r2max = radius * radius;
+
+    // Count all first, then recolor, so no particle is recolored while others read it
+    std::vector<int> count(n);
+    std::for_each(P_EXPOLP, ibegin, iend, [&](Particle_t& m) {
+        int c = 0;
+        for (const Particle_t* p1 = beginp; p1 != endp; ++p1)
+            if (p1 != &m && (p1->pos - m.pos).lenSqr() < r2max) ++c;
+        count[&m - beginp] = c;
+    });
+    std::for_each(P_EXPOL, ibegin, iend, [&](Particle_t& m) {
+        const float t = PASpeedWeight_Impl((float)count[&m - beginp], min_neighbors, max_neighbors);
+        m.color = color_sparse + (color_dense - color_sparse) * t;
+    });
 }
 
 // Inter-particle gravitation
@@ -404,6 +546,21 @@ void PACommitKills::Execute(ParticleGroup& group, ParticleList::iterator ibegin,
     }
 
 #endif
+}
+
+// Add particles tagged to be created by inline P.Source() and P.Vertex()
+void PACommitSources::Execute(ParticleGroup& group, ParticleList::iterator ibegin, ParticleList::iterator iend)
+{
+    LIB_ASSERT(ibegin == group.begin() && iend == group.end(), "Can only be done on whole list");
+
+    // Iterate through all registered thread-local buffers and harvest their particles.
+    // This is safe because CommitSources is called sequentially after the parallel loop.
+    for (auto& buf_ptr : PS->all_thread_buffers.range()) { // Use range() for iteration over tbb::concurrent_vector
+        for (const auto& p : *buf_ptr) {
+            group.Add(p);
+        }
+        buf_ptr->clear(); // Clear for the next frame/loop
+    }
 }
 
 // Get rid of older particles

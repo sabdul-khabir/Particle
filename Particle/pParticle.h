@@ -33,17 +33,41 @@ struct Particle_t {
 
     inline Particle_t() {}
 
+    // Constructor with all parameters
     inline Particle_t(const pVec& pos, const pVec& posB, const pVec& up, const pVec& upB, const pVec& vel, const pVec& velB, const pVec& rvel,
-                      const pVec& rvelB, const pVec& size, const pVec& color, float alpha, float age, float mass, pdata_t data, float tmp0) :
+                      const pVec& size, const pVec& color, float alpha, float age, float mass, pdata_t data_param) : // rvelB and tmp0 params removed
         pos(pos),
-        posB(posB), up(up), upB(upB), vel(vel), velB(velB), rvel(rvel), size(size), color(color), alpha(alpha), age(age), mass(mass), data(data), tmp0(0)
+        posB(posB), up(up), upB(upB), vel(vel), velB(velB), rvel(rvel), size(size), color(color), alpha(alpha), age(age), mass(mass), tmp0(0), data(data_param) // Initializer order fixed
     {
     }
 
+    // Copy constructor
     inline Particle_t(const Particle_t& rhs) :
         pos(rhs.pos), posB(rhs.posB), up(rhs.up), upB(rhs.upB), vel(rhs.vel), velB(rhs.velB), rvel(rhs.rvel), size(rhs.size), color(rhs.color),
         alpha(rhs.alpha), age(rhs.age), mass(rhs.mass), data(rhs.data), tmp0(rhs.tmp0)
     {
+    }
+
+    // Copy assignment operator
+    inline Particle_t& operator=(const Particle_t& rhs)
+    {
+        if (this != &rhs) {
+            pos = rhs.pos;
+            posB = rhs.posB;
+            up = rhs.up;
+            upB = rhs.upB;
+            vel = rhs.vel;
+            velB = rhs.velB;
+            rvel = rhs.rvel;
+            size = rhs.size;
+            color = rhs.color;
+            alpha = rhs.alpha;
+            age = rhs.age;
+            mass = rhs.mass;
+            data = rhs.data;
+            tmp0 = rhs.tmp0;
+        }
+        return *this;
     }
 
     // For sorting.

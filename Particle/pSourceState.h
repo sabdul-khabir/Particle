@@ -27,6 +27,7 @@ public:
     std::shared_ptr<pDomain> VertexB_;
     std::shared_ptr<pDomain> Size_;
     std::shared_ptr<pDomain> Color_;
+    std::shared_ptr<pDomain> ColorB_;
     std::shared_ptr<pDomain> Alpha_;
     pdata_t Data_;
     float Age_;
@@ -37,7 +38,8 @@ public:
 public:
     PINLINE pSourceState() :
         Up_(new PDPoint(pVec(0, 1, 0))), Vel_(new PDPoint(pVec(0, 0, 0))), RotVel_(new PDPoint(pVec(0, 0, 0))), VertexB_(new PDPoint(pVec(0, 0, 0))),
-        Size_(new PDPoint(pVec(1, 1, 1))), Color_(new PDPoint(pVec(1, 1, 1))), Alpha_(new PDPoint(pVec(1, 1, 1)))
+        Size_(new PDPoint(pVec(1, 1, 1))), Color_(new PDPoint(pVec(1, 1, 1))), ColorB_(new PDPoint(pVec(1, 1, 1))),
+        Alpha_(new PDPoint(pVec(1, 1, 1)))
     {
         Data_ = 0;
         Age_ = 0.0f;
@@ -54,6 +56,7 @@ public:
         VertexB_ = src.VertexB_->copy();
         Size_ = src.Size_->copy();
         Color_ = src.Color_->copy();
+        ColorB_ = src.ColorB_->copy();
         Alpha_ = src.Alpha_->copy();
 
         Data_ = src.Data_;
@@ -111,6 +114,15 @@ public:
     {
         Color_ = cdom.copy();
         Alpha_ = adom.copy();
+    }
+
+    /// Specify the secondary color domain of particles to be created.
+    ///
+    /// Reserved for future use: this value is stored but not yet used. Particle_t has no secondary color attribute, so Source() and Vertex()
+    /// currently ignore it.
+    PINLINE void ColorB(const pDomain& cdom)
+    {
+        ColorB_ = std::shared_ptr<pDomain>(cdom.copy());
     }
 
     /// Specify the user data of particles to be created.

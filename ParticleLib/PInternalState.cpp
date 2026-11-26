@@ -39,14 +39,22 @@ void StartParticleLoop(std::shared_ptr<PInternalState_t> PS, PInternalShadow_t& 
 
     ParticleGroup& pg = PS->getPGroups()[PS->get_pgroup_id()];
     PSh.dt = PS->get_dt();
-    PSh.ibegin = &*pg.begin();
-    PSh.iend = &*pg.begin() + (pg.end() - pg.begin());
+    // Use data() rather than &*pg.begin(): an empty group's begin() is its end(), which can't be dereferenced (Debug builds assert).
+    ParticleList& L = pg.GetList();
+    PSh.ibegin = L.data();
+    PSh.iend = L.data() + L.size();
+    // Inline SPH() can use the group's grid only if UpdateSpatialGrid() built it since the last loop, for the same particles
+    PSh.sph_grid = (pg.sph_grid.ready && pg.sph_grid.count == L.size()) ? &pg.sph_grid : nullptr;
     PSh.in_new_list = PS->get_in_new_list();
     PSh.in_particle_loop = true;
 }
 
 void EndParticleLoop(std::shared_ptr<PInternalState_t> PS, PInternalShadow_t& PSh)
 {
+    // The particles have moved, so the densities are out of date. Inline SPH() in another loop needs a new UpdateSpatialGrid().
+    if (PSh.sph_grid) PS->getPGroups()[PS->get_pgroup_id()].sph_grid.ready = false;
+    PSh.sph_grid = nullptr;
+
     PS->set_in_particle_loop(false);
     PSh.in_particle_loop = false;
     PSh.in_new_list = PS->get_in_new_list();
@@ -55,6 +63,27 @@ void EndParticleLoop(std::shared_ptr<PInternalState_t> PS, PInternalShadow_t& PS
 PInternalState_t::PInternalState_t() : in_call_list(false), in_new_list(false), in_particle_loop(false), dt(1.0f), pgroup_id(-1), alist_id(-1)
 {
     working_set_size = (0x100000 / sizeof(Particle_t)); // Use 1 MB of cache
+}
+
+PInternalState_t::~PInternalState_t()
+{
+    // unique_ptr in all_thread_buffers handles memory cleanup
+}
+
+// Returns the thread-local buffer for this context.
+// This is highly performant as it avoids locks once the buffer is registered for the thread.
+std::vector<Particle_t>& PInternalState_t::GetLocalDeferredBuffer()
+{
+    static thread_local PInternalState_t* cached_ps = nullptr;
+    static thread_local std::vector<Particle_t>* cached_buf = nullptr;
+
+    if (cached_ps == this) return *cached_buf;
+
+    all_thread_buffers.emplace_back(std::make_unique<std::vector<Particle_t>>());
+    cached_ps = this;
+    cached_buf = all_thread_buffers.back().get();
+    cached_buf->reserve(1024); // Reduce reallocations during birth spikes
+    return *cached_buf;
 }
 
 // Return an index into the list of particle groups where p_group_count groups can be added

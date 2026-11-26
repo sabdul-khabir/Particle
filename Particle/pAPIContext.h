@@ -12,6 +12,13 @@
 #include "Particle/pInternalShadow.h"
 #include "Particle/pParticle.h"
 #include "Particle/pSourceState.h"
+#include <cstdint>
+#include <functional>
+#include <memory>   
+#include <algorithm>
+#include <vector>
+
+#include <algorithm>
 
 namespace PAPI {
 
@@ -245,6 +252,20 @@ public:
                               size_t& data1Ofs   ///< the number of floats from returned ptr to the first particle's data parameter, which is a 32-bit integer
     );
 
+    /// Return pointers to particle data in SoA (Structure of Arrays) format.
+    ///
+    /// Note: As of version 3.1, this returns pointers in SoA (Structure of Arrays) format.
+    size_t GetParticlePointers(float*& posPtr,
+                               float*& velPtr,
+                               float*& colorPtr,
+                               float*& sizePtr,
+                               float*& agePtr,
+                               float*& alphaPtr,
+                               float*& upPtr,
+                               float*& rvelPtr,
+                               float*& massPtr,
+                               uint32_t*& dataPtr);
+
     /// Change the maximum number of particles in the current group.
     ///
     /// If necessary, this will delete particles from the end of the particle group, but no other particles will be deleted.
@@ -342,6 +363,9 @@ public:
     /// Delete particles tagged to be killed by inline P.I.KillOld(), P.I.Sink(), and P.I.SinkVelocity()
     void CommitKills();
 
+    /// Add particles tagged to be created by inline P.Source() and P.Vertex()
+    void CommitSources();
+
     /// Sort the particles by their projection onto the look vector.
     ///
     /// Many rendering systems require rendering transparent particles in back-to-front order. The ordering is defined by the eye point and the
@@ -354,40 +378,36 @@ public:
               const bool clamp_negative = false ///< true to set negative dot product values to zero before sorting
     );
 
-    /// Add particles with positions in the specified domain.
+    /// Prepare the current particle group for inline SPH().
     ///
-    /// Adds new particles to the current particle group. The particle positions are chosen from the given domain. All the other particle
-    /// attributes such as color and velocity are chosen according to their current domains.
+    /// Sorts the group's particles into a spatial grid whose cells are smoothing_radius wide, and computes every particle's SPH density
+    /// from the current positions. Inline SPH() needs every particle's density before it can compute any particle's force, so call this
+    /// right before each ParticleLoop() that calls SPH(), with the same smoothing_radius:
+    /// \code
+    /// P.UpdateSpatialGrid(0.4f);
+    /// P.ParticleLoop(std::execution::par_unseq, [&](Particle_t& p) {
+    ///     P.SPH(p, 0.4f, 110.f, 20.f, 1.f);
+    ///     P.Gravity(p, pVec(0, 0, -9.8f));
+    ///     P.Move(p);
+    /// });
+    /// \endcode
     ///
-    /// When the Source action is called within an action list, the particle attribute domains used are those that were current when the Source
-    /// command was called within the NewActionList() / EndActionList() block instead of when CallActionList() was called. Note that this is unlike OpenGL
-    /// display lists.
-    ///
-    /// If particle_rate / dt is not an integer then Source() adjusts the number of particles to add during this time step so that the average
-    /// number added per unit time is particle_rate.
-    ///
-    /// If too few particles seem to be added each frame, it is probably because the particle group is already full. If this is bad, you can
-    /// grow the group using SetMaxParticles().
-    void Source(const float particle_rate, ///< how many particles to add per unit time
-                const pDomain& dom,        ///< particle positions are chosen from this domain
-                const pSourceState& SrcSt  ///< all other particle attributes are chosen from this source state
+    /// The grid serves only the next ParticleLoop(), and only if the number of particles in the group hasn't changed since this call.
+    /// The legacy SPH() action makes its own grid and doesn't need this.
+    void UpdateSpatialGrid(const float smoothing_radius ///< the smoothing_radius that will be passed to SPH(). Must be > 0.
     );
 
-    /// Add a single particle at the specified location.
+    /// Set particle color from the number of nearby particles.
     ///
-    /// This action mostly is a shorthand for Source(1, PDPoint(x, y, z)) but allows different callback data per particle.
+    /// For each particle, counts the other particles within radius. Particles with min_neighbors or fewer get color_sparse; particles with
+    /// max_neighbors or more get color_dense. Colors in between are linearly interpolated.
     ///
-    /// When called in immediate mode, this action uses a slightly faster method to add a single particle to the current particle group.
-    /// Also when in immediate mode, exactly one particle will be added per call, instead of an average of 1 / dt particles being added.
-    /// Particle attributes are chosen according to their current domains, as with Source.
-    ///
-    /// The user data attribute is an exception. It always takes the attribute from the optional data parameter to Vertex(), overriding the source state value.
-    ///
-    /// This call is patterned after the glVertex() calls. It is useful for creating a particle group with exactly specified initial positions.
-    /// For example, you can specify a geometrical model using Vertex calls, and then explode or deform it.
-    void Vertex(const pVec& v,             ///< position of particle to create
-                const pSourceState& SrcSt, ///< all other particle attributes are chosen from this source state
-                const pdata_t data = 0     ///< application data to be passed to the birth and death callbacks
+    /// This action is only available in the legacy (non-inline) API. It is O(N^2) in the number of particles in the group.
+    void DensityColor(const float radius,       ///< count particles within this distance
+                      const float min_neighbors, ///< neighbor count mapped to color_sparse
+                      const float max_neighbors, ///< neighbor count mapped to color_dense
+                      const pVec& color_sparse,  ///< color for particles with min_neighbors or fewer
+                      const pVec& color_dense    ///< color for particles with max_neighbors or more
     );
 
     /// <summary>
